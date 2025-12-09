@@ -1,0 +1,45 @@
+{
+  "pk": "USER#brianamay48",
+  "sk": "TASTE_PROFILE#CURRENT",
+  "user_id": "brianamay48",
+  "generated_at": "2025-12-09T21:46:44.060530+00:00",
+  "taste_profile": {
+    "favorite_genres": [
+      "k-pop",
+      "pop",
+      "bedroom pop",
+      "noise music",
+      "art pop"
+    ],
+    "favorite_artists": [
+      "The Weeknd",
+      "5 Seconds of Summer",
+      "The Neighbourhood",
+      "Sabrina Carpenter",
+      "BLACKPINK"
+    ],
+    "sample_tracks": [
+      {
+        "name": "JUMP",
+        "artist": "BLACKPINK"
+      },
+      {
+        "name": "Hype Boy",
+        "artist": "NewJeans"
+      },
+      {
+        "name": "Sugar Talking",
+        "artist": "Sabrina Carpenter"
+      },
+      {
+        "name": "gameboy",
+        "artist": "ROSÉ"
+      },
+      {
+        "name": "gun show",
+        "artist": "lil hero"
+      }
+    ],
+    "summary": "You mainly listen to genres like k-pop, pop, bedroom pop. Your top artists include The Weeknd, 5 Seconds of Summer, The Neighbourhood."
+  }
+}

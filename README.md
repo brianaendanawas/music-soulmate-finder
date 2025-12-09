@@ -25,3 +25,11 @@ A small web app that lets people track their music taste and find "music soulmat
    source venv/bin/activate  # Mac/Linux
    # or
    venv\Scripts\activate     # Windows
+
+## Cloud-Ready Design (AWS, Free Tier Friendly)
+
+- Flask + Spotify API locally, API-first design.
+- Ready for API Gateway → Lambda → DynamoDB.
+- Core aggregation logic in `backend/taste_profile.py` so it can be reused directly in Lambda.
+- `backend/save_taste_profile_locally.py` generates DynamoDB-style records (pk/sk).
+- Frontend planned for S3 (+ optional CloudFront).
