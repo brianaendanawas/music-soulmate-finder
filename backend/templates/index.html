@@ -1,411 +1,89 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Music Soulmate Finder – Day 5</title>
+  <meta charset="UTF-8" />
+  <title>Music Soulmate Finder – Week 1</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    :root { font-family: system-ui; background:#050816; color:#f9fafb; }
     body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #050816;
-      color: #f9fafb;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      min-height: 100vh;
-      align-items: center;
-      justify-content: center;
+      margin:0; padding:0;
+      background: radial-gradient(circle at top, #1f2937 0, #020617 40%);
+      min-height:100vh;
     }
-
+    .page { max-width:1080px; margin:0 auto; padding:1.5rem; }
+    header h1 { margin:0 0 .5rem; font-size:1.8rem; }
+    header p { margin:0; color:#e5e7eb; font-size:.95rem; }
+    .grid {
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+      gap:1rem;
+      margin-bottom:1.5rem;
+    }
     .card {
-      background: #111827;
-      border-radius: 16px;
-      padding: 24px;
-      max-width: 900px;
-      width: 100%;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      background:rgba(15,23,42,.9);
+      border-radius:.9rem;
+      padding:1rem;
+      box-shadow:0 18px 40px rgba(15,23,42,.8);
+      border:1px solid rgba(148,163,184,.25);
     }
-
-    h1 {
-      margin-top: 0;
-      margin-bottom: 8px;
-      font-size: 1.8rem;
+    .card h2 { margin-top:0; font-size:1.2rem; margin-bottom:.5rem; }
+    .status { font-size:.85rem; color:#9ca3af; min-height:1em; }
+    .profile-layout { display:flex; gap:.75rem; margin-top:.5rem; }
+    .avatar { width:64px; height:64px; border-radius:50%; object-fit:cover; border:2px solid #22c55e; }
+    .profile-info h2 { margin:0 0 .25rem; font-size:1.1rem; }
+    .item-list { list-style:none; padding:0; margin:.5rem 0 0; }
+    .artist-item, .track-item {
+      display:flex; gap:.5rem; padding:.4rem 0;
+      border-bottom:1px solid rgba(75,85,99,.4);
+      font-size:.9rem;
     }
-
-    .subtitle {
-      margin-top: 0;
-      margin-bottom: 16px;
-      color: #9ca3af;
-      font-size: 0.95rem;
-    }
-
-    .profile {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 16px;
-      padding: 12px;
-      border-radius: 12px;
-      background: rgba(31, 41, 55, 0.8);
-    }
-
-    .profile-image {
-      width: 64px;
-      height: 64px;
-      border-radius: 999px;
-      object-fit: cover;
-      border: 2px solid #4b5563;
-      display: none; /* shown when we have an image */
-    }
-
-    .profile-main {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .profile-name {
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
-
-    .profile-followers {
-      font-size: 0.85rem;
-      color: #9ca3af;
-    }
-
-    .profile-link {
-      font-size: 0.85rem;
-      color: #a5b4fc;
-      text-decoration: underline;
-      cursor: pointer;
-    }
-
-    .section-row {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 24px;
-      margin-top: 16px;
-    }
-
-    .section {
-      background: #020617;
-      border-radius: 12px;
-      padding: 12px 16px 16px 16px;
-      border: 1px solid #1f2937;
-    }
-
-    .section-title {
-      margin-top: 0;
-      margin-bottom: 8px;
-      font-size: 1.1rem;
-    }
-
-    ul {
-      margin: 0;
-      padding-left: 20px;
-    }
-
-    li {
-      margin-bottom: 4px;
-      font-size: 0.95rem;
-    }
-
-    .status {
-      margin-top: 12px;
-      font-size: 0.9rem;
-      color: #9ca3af;
-    }
-
-    .error {
-      color: #fca5a5;
-    }
-
-    .loading {
-      color: #a5b4fc;
-    }
-
-    button {
-      margin-top: 4px;
-      margin-bottom: 8px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      font-size: 0.9rem;
-    }
-
-    .taste-summary {
-      font-size: 0.95rem;
-      margin-bottom: 8px;
-    }
-
-    .tag-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-
-    .tag {
-      font-size: 0.8rem;
-      padding: 4px 8px;
-      border-radius: 999px;
-      background: #111827;
-      border: 1px solid #1f2937;
-    }
-
-    @media (max-width: 700px) {
-      .section-row {
-        grid-template-columns: 1fr;
-      }
-    }
+    .artist-item:last-child, .track-item:last-child { border-bottom:none; }
+    .thumb { width:40px; height:40px; border-radius:.5rem; object-fit:cover; }
+    footer { margin-top:1rem; font-size:.8rem; color:#9ca3af; text-align:center; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>Music Soulmate Finder</h1>
-    <p class="subtitle">
-      Day 5 – building a simple taste profile from your Spotify data. This JSON will be perfect for AWS (Lambda + DynamoDB) later.
-    </p>
-
-    <div id="health" class="status loading">Checking backend health…</div>
-
-    <!-- Profile card -->
-    <div class="profile">
-      <img id="profile-image" class="profile-image" alt="Profile image" />
-      <div class="profile-main">
-        <div id="profile-name" class="profile-name">Loading your Spotify profile…</div>
-        <div id="profile-followers" class="profile-followers"></div>
-        <a id="profile-link" class="profile-link" href="#" target="_blank" rel="noreferrer" style="display:none;">
-          Open profile on Spotify
-        </a>
-      </div>
-    </div>
-
-    <div class="section-row">
-      <div class="section">
-        <h2 class="section-title">Your Top Artists</h2>
-        <button id="refresh-artists">Refresh artists</button>
-        <ul id="artists-list">
-          <!-- Filled by JS -->
-        </ul>
-      </div>
-
-      <div class="section">
-        <h2 class="section-title">Your Top Tracks</h2>
-        <button id="refresh-tracks">Refresh tracks</button>
-        <ul id="tracks-list">
-          <!-- Filled by JS -->
-        </ul>
-      </div>
-    </div>
-
-    <div class="section" style="margin-top: 16px;">
-      <h2 class="section-title">Your Taste Profile</h2>
-      <button id="refresh-taste">Refresh taste profile</button>
-      <p id="taste-summary" class="taste-summary">
-        Loading your taste profile…
+  <div class="page">
+    <header>
+      <h1>Music Soulmate Finder – Dev Dashboard</h1>
+      <p>
+        Local Week 1 build: Spotify + Flask returning JSON for profile, artists, tracks, taste profile.
+        Designed for AWS (API Gateway → Lambda → DynamoDB → S3/CloudFront).
       </p>
+    </header>
 
-      <h3 style="margin-bottom: 4px; font-size: 0.95rem;">Favorite Genres</h3>
-      <ul id="genres-tags" class="tag-list"></ul>
+    <div class="grid">
+      <section class="card">
+        <h2>Your Spotify Profile</h2>
+        <div class="status" id="profile-status"></div>
+        <div id="profile-card" class="profile-layout"></div>
+      </section>
 
-      <h3 style="margin-top: 10px; margin-bottom: 4px; font-size: 0.95rem;">Favorite Artists</h3>
-      <ul id="artists-tags" class="tag-list"></ul>
+      <section class="card">
+        <h2>Top Artists</h2>
+        <div class="status" id="artists-status"></div>
+        <div id="artists-list"></div>
+      </section>
 
-      <h3 style="margin-top: 10px; margin-bottom: 4px; font-size: 0.95rem;">Sample Tracks</h3>
-      <ul id="sample-tracks-list"></ul>
+      <section class="card">
+        <h2>Top Tracks</h2>
+        <div class="status" id="tracks-status"></div>
+        <div id="tracks-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Taste Profile Summary</h2>
+        <div class="status" id="taste-status"></div>
+        <div id="taste-profile"></div>
+      </section>
     </div>
 
-    <div id="error" class="status"></div>
+    <footer>
+      Week 1: Local Flask + Spotify, AWS-ready design.
+    </footer>
   </div>
 
-  <script>
-    async function checkHealth() {
-      const healthEl = document.getElementById("health");
-      try {
-        const res = await fetch("/health");
-        if (!res.ok) throw new Error("Health check failed");
-        const data = await res.json();
-        healthEl.textContent = `Backend status: ${data.status} (${data.service})`;
-        healthEl.classList.remove("loading");
-      } catch (err) {
-        healthEl.textContent = "Backend health check failed.";
-        healthEl.classList.add("error");
-      }
-    }
-
-    async function loadProfile() {
-      const nameEl = document.getElementById("profile-name");
-      const imgEl = document.getElementById("profile-image");
-      const followersEl = document.getElementById("profile-followers");
-      const linkEl = document.getElementById("profile-link");
-      const errorEl = document.getElementById("error");
-
-      try {
-        const res = await fetch("/me");
-        if (!res.ok) throw new Error("Failed to load profile");
-
-        const data = await res.json();
-        const profile = data.profile;
-
-        if (!profile) {
-          nameEl.textContent = "No profile data found.";
-          return;
-        }
-
-        nameEl.textContent = profile.display_name || "Unknown user";
-
-        if (profile.followers != null) {
-          followersEl.textContent = `${profile.followers} followers`;
-        } else {
-          followersEl.textContent = "";
-        }
-
-        if (profile.image_url) {
-          imgEl.src = profile.image_url;
-          imgEl.style.display = "block";
-        } else {
-          imgEl.style.display = "none";
-        }
-
-        if (profile.spotify_url) {
-          linkEl.href = profile.spotify_url;
-          linkEl.style.display = "inline";
-        } else {
-          linkEl.style.display = "none";
-        }
-      } catch (err) {
-        errorEl.textContent = "Error loading profile. You may need to log in again in the backend console.";
-        errorEl.classList.add("error");
-      }
-    }
-
-    async function loadTopArtists() {
-      const listEl = document.getElementById("artists-list");
-      const errorEl = document.getElementById("error");
-      listEl.innerHTML = "";
-      errorEl.textContent = "";
-
-      try {
-        const res = await fetch("/top-artists");
-        if (!res.ok) throw new Error("Failed to load top artists");
-
-        const data = await res.json();
-        const artists = data.top_artists || [];
-
-        if (artists.length === 0) {
-          listEl.innerHTML = "<li>No top artists found (Spotify might not have enough data yet).</li>";
-          return;
-        }
-
-        artists.forEach((artist) => {
-          const li = document.createElement("li");
-          li.textContent = artist.name;
-          listEl.appendChild(li);
-        });
-      } catch (err) {
-        errorEl.textContent = "Error loading top artists. You may need to log in again in the backend console.";
-        errorEl.classList.add("error");
-      }
-    }
-
-    async function loadTopTracks() {
-      const listEl = document.getElementById("tracks-list");
-      const errorEl = document.getElementById("error");
-      listEl.innerHTML = "";
-      errorEl.textContent = "";
-
-      try {
-        const res = await fetch("/top-tracks");
-        if (!res.ok) throw new Error("Failed to load top tracks");
-
-        const data = await res.json();
-        const tracks = data.top_tracks || [];
-
-        if (tracks.length === 0) {
-          listEl.innerHTML = "<li>No top tracks found (Spotify might not have enough data yet).</li>";
-          return;
-        }
-
-        tracks.forEach((track) => {
-          const li = document.createElement("li");
-          const artistNames = (track.artists || []).join(", ");
-          li.textContent = `${track.name} — ${artistNames}`;
-          listEl.appendChild(li);
-        });
-      } catch (err) {
-        errorEl.textContent = "Error loading top tracks. You may need to log in again in the backend console.";
-        errorEl.classList.add("error");
-      }
-    }
-
-    async function loadTasteProfile() {
-      const summaryEl = document.getElementById("taste-summary");
-      const genresEl = document.getElementById("genres-tags");
-      const artistsEl = document.getElementById("artists-tags");
-      const sampleTracksEl = document.getElementById("sample-tracks-list");
-      const errorEl = document.getElementById("error");
-
-      summaryEl.textContent = "Loading your taste profile…";
-      genresEl.innerHTML = "";
-      artistsEl.innerHTML = "";
-      sampleTracksEl.innerHTML = "";
-      errorEl.textContent = "";
-
-      try {
-        const res = await fetch("/taste-profile");
-        if (!res.ok) throw new Error("Failed to load taste profile");
-
-        const data = await res.json();
-        const taste = data.taste_profile;
-
-        if (!taste) {
-          summaryEl.textContent = "No taste profile data found yet.";
-          return;
-        }
-
-        summaryEl.textContent = taste.summary || "Taste profile loaded.";
-
-        (taste.favorite_genres || []).forEach((genre) => {
-          const li = document.createElement("li");
-          li.className = "tag";
-          li.textContent = genre;
-          genresEl.appendChild(li);
-        });
-
-        (taste.favorite_artists || []).forEach((artist) => {
-          const li = document.createElement("li");
-          li.className = "tag";
-          li.textContent = artist;
-          artistsEl.appendChild(li);
-        });
-
-        (taste.sample_tracks || []).forEach((track) => {
-          const li = document.createElement("li");
-          li.textContent = `${track.name} — ${track.artist}`;
-          sampleTracksEl.appendChild(li);
-        });
-      } catch (err) {
-        summaryEl.textContent = "Error loading taste profile.";
-        errorEl.textContent = "Error loading taste profile. You may need to log in again in the backend console.";
-        errorEl.classList.add("error");
-      }
-    }
-
-    document.getElementById("refresh-artists").addEventListener("click", loadTopArtists);
-    document.getElementById("refresh-tracks").addEventListener("click", loadTopTracks);
-    document.getElementById("refresh-taste").addEventListener("click", loadTasteProfile);
-
-    // Initial load when the page opens
-    checkHealth();
-    loadProfile();
-    loadTopArtists();
-    loadTopTracks();
-    loadTasteProfile();
-  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

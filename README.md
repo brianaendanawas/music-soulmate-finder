@@ -33,3 +33,17 @@ A small web app that lets people track their music taste and find "music soulmat
 - Core aggregation logic in `backend/taste_profile.py` so it can be reused directly in Lambda.
 - `backend/save_taste_profile_locally.py` generates DynamoDB-style records (pk/sk).
 - Frontend planned for S3 (+ optional CloudFront).
+
+## Week 1 Progress – Local Dev + AWS-Ready Design
+
+- Connected to the Spotify Web API (`backend/spotify_client.py`)
+- Added JSON endpoints:
+  - GET /health
+  - GET /me
+  - GET /top-artists
+  - GET /top-tracks
+  - GET /taste-profile
+- Built reusable taste profile logic (`backend/taste_profile.py`)
+- Simulated DynamoDB pk/sk design by saving records to data/taste_profile_<user>.json
+- Added AWS architecture doc (API Gateway → Lambda → DynamoDB → S3/CloudFront)
+- Built a dev dashboard UI (`backend/templates/index.html` + `backend/static/app.js`)
