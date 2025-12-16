@@ -47,3 +47,16 @@ A small web app that lets people track their music taste and find "music soulmat
 - Simulated DynamoDB pk/sk design by saving records to data/taste_profile_<user>.json
 - Added AWS architecture doc (API Gateway → Lambda → DynamoDB → S3/CloudFront)
 - Built a dev dashboard UI (`backend/templates/index.html` + `backend/static/app.js`)
+
+## Week 2 – AWS Lambda (Taste Profile)
+
+### Day 3
+- Packaged Lambda code into `lambda_package.zip`
+- Deployed `music-soulmate-taste-profile` Lambda (Python 3.12)
+- Tested with sample event
+- Verified CloudWatch logs
+- Added custom metric filter:
+  - Namespace: MusicSoulmate
+  - Metric: TasteProfileInvocations
+  - Pattern: "TasteProfile invocation received"
+

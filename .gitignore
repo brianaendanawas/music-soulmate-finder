@@ -8,3 +8,7 @@ venv/
 # Environment files
 .env
 *.env
+
+
+lambda_package.zip
+*.zip
