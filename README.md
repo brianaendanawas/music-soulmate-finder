@@ -60,3 +60,9 @@ A small web app that lets people track their music taste and find "music soulmat
   - Metric: TasteProfileInvocations
   - Pattern: "TasteProfile invocation received"
 
+### Day 4 – API Gateway HTTP API
+
+- Added POST /taste-profile route integrated with Lambda.
+- Enabled CORS.
+- Tested the endpoint using HTTP POST from local machine.
+- Lambda now supports API Gateway proxy event format.
