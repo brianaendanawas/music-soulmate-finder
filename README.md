@@ -66,3 +66,12 @@ A small web app that lets people track their music taste and find "music soulmat
 - Enabled CORS.
 - Tested the endpoint using HTTP POST from local machine.
 - Lambda now supports API Gateway proxy event format.
+
+### Day 5 – Frontend calling AWS API
+
+- Updated `backend/static/app.js` to call the AWS HTTP API Gateway endpoint
+  (`POST https://7rn3olmit4.execute-api.us-east-1.amazonaws.com/taste-profile`)
+  instead of a local Flask `/taste-profile` route.
+- Added loading, success, and error states for the Taste Profile panel.
+- The local dashboard now talks directly to AWS Lambda via API Gateway.
+

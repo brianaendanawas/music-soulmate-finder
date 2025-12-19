@@ -1,5 +1,12 @@
-const API_BASE_URL = ""; 
+// backend/static/app.js
 
+// Flask base URL for local routes (leave empty for same origin)
+const API_BASE_URL = "";
+
+// AWS HTTP API base URL (no trailing slash)
+const AWS_API_BASE_URL = "https://7rn3olmit4.execute-api.us-east-1.amazonaws.com";
+
+// Helper to build URLs (used for local Flask endpoints)
 function apiUrl(path) {
   return API_BASE_URL ? `${API_BASE_URL}${path}` : path;
 }
@@ -20,7 +27,9 @@ async function fetchJson(path) {
   return response.json();
 }
 
-// ---- Load /me ----
+// --------------------------------------------------
+// /me  (local Flask + Spotify)
+// --------------------------------------------------
 async function loadProfile() {
   setText("profile-status", "Loading profile...");
   try {
@@ -60,7 +69,9 @@ async function loadProfile() {
   }
 }
 
-// ---- Load /top-artists ----
+// --------------------------------------------------
+// /top-artists  (local Flask + Spotify)
+// --------------------------------------------------
 async function loadTopArtists() {
   setText("artists-status", "Loading top artists...");
   try {
@@ -102,7 +113,9 @@ async function loadTopArtists() {
   }
 }
 
-// ---- Load /top-tracks ----
+// --------------------------------------------------
+// /top-tracks  (local Flask + Spotify)
+// --------------------------------------------------
 async function loadTopTracks() {
   setText("tracks-status", "Loading top tracks...");
   try {
@@ -144,44 +157,83 @@ async function loadTopTracks() {
   }
 }
 
-// ---- Load /taste-profile ----
+// --------------------------------------------------
+// Taste Profile → call AWS API Gateway (POST /taste-profile)
+// --------------------------------------------------
+
+// Sample request body to send to your Lambda.
+// Later we can plug in real Spotify data.
+function buildTasteProfileRequestBody() {
+  return {
+    items: {
+      user_id: "spotify:user:briana",
+      top_artists: [
+        "NCT 127",
+        "Lisa",
+        "Red Velvet",
+        "NewJeans"
+      ],
+      top_genres: [
+        "k-pop",
+        "k-pop",
+        "r&b",
+        "pop"
+      ],
+      top_tracks: [
+        "Favorite – NCT 127",
+        "Sticker – NCT 127",
+        "No Clue – NCT 127",
+        "Chill – Lisa"
+      ]
+    }
+  };
+}
+
 async function loadTasteProfile() {
-  setText("taste-status", "Building taste profile...");
+  setText("taste-status", "Loading taste profile from AWS…");
+  setHtml("taste-profile", ""); // clear previous
+
   try {
-    const data = await fetchJson("/taste-profile");
-    const taste = data.taste_profile || {};
+    const body = buildTasteProfileRequestBody();
 
-    const genresHtml = taste.favorite_genres?.length
-      ? `<p><strong>Favorite genres:</strong> ${taste.favorite_genres.join(", ")}</p>`
-      : "";
+    const response = await fetch(`${AWS_API_BASE_URL}/taste-profile`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
 
-    const artistsHtml = taste.favorite_artists?.length
-      ? `<p><strong>Favorite artists:</strong> ${taste.favorite_artists.join(", ")}</p>`
-      : "";
+    if (!response.ok) {
+      const text = await response.text();
+      console.error("Taste profile error response:", text);
+      setText("taste-status", `Error from AWS: HTTP ${response.status}`);
+      setHtml("taste-profile", `<pre class="code-block">${text}</pre>`);
+      return;
+    }
 
-    const tracksHtml = taste.sample_tracks?.length
-      ? `
-        <p><strong>Sample tracks:</strong></p>
-        <ul class="item-list">
-          ${taste.sample_tracks
-            .map((t) => `<li class="track-item"><strong>${t.name}</strong> – <small>${t.artist}</small></li>`)
-            .join("")}
-        </ul>
-      `
-      : "";
+    const data = await response.json();
+    console.log("Taste profile from AWS:", data);
 
+    // If Lambda returns { taste_profile: {...} }, prefer that inner object.
+    const payload = data.taste_profile || data;
+
+    setText("taste-status", "Taste profile loaded from AWS ✅");
+
+    // Pretty JSON display
     setHtml(
       "taste-profile",
-      `<p>${taste.summary || "No summary available yet."}</p>${genresHtml}${artistsHtml}${tracksHtml}`
+      `<pre class="code-block">${JSON.stringify(payload, null, 2)}</pre>`
     );
-    setText("taste-status", "");
   } catch (err) {
-    console.error(err);
-    setText("taste-status", "Error loading taste profile.");
+    console.error("Taste profile fetch failed:", err);
+    setText("taste-status", "Network error calling AWS API. Check console/logs.");
   }
 }
 
-// ---- Start page ----
+// --------------------------------------------------
+// Start page
+// --------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   loadProfile();
   loadTopArtists();

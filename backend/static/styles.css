@@ -1,0 +1,26 @@
+.status {
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.status.info {
+  color: #555;
+}
+
+.status.success {
+  color: #0a7f3f;
+}
+
+.status.error {
+  color: #b00020;
+}
+
+.code-block {
+  background: #111;
+  color: #f5f5f5;
+  padding: 0.75rem;
+  border-radius: 6px;
+  font-family: Consolas, monospace;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}

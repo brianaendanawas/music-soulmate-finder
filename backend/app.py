@@ -36,7 +36,10 @@ def create_app():
     @app.get("/top-artists")
     def get_top_artists():
         sp = create_spotify_client()
-        results = sp.current_user_top_artists(limit=10)
+        results = sp.current_user_top_artists(
+            limit=10,
+            time_range="short_term"  # last ~4 weeks
+        )
 
         artists = []
         for a in results["items"]:
@@ -57,7 +60,10 @@ def create_app():
     @app.get("/top-tracks")
     def get_top_tracks():
         sp = create_spotify_client()
-        results = sp.current_user_top_tracks(limit=10)
+        results = sp.current_user_top_tracks(
+            limit=10,
+            time_range="short_term"
+        )
 
         tracks = [
             {
