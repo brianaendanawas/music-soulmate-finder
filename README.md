@@ -75,3 +75,32 @@ A small web app that lets people track their music taste and find "music soulmat
 - Added loading, success, and error states for the Taste Profile panel.
 - The local dashboard now talks directly to AWS Lambda via API Gateway.
 
+
+## Week 2 – First Lambda + API Gateway
+
+Goal: Move the “taste profile” logic into AWS so the app looks and behaves like a real cloud project.
+
+### Day 1 – Extract taste profile logic
+- Moved the core taste profile builder into `lambda/build_taste_profile.py`.
+
+### Day 2 – Lambda handler + local testing
+- Added `lambda/handler.py`.
+- Created local test script.
+
+### Day 3 – Deploy Lambda + CloudWatch metrics
+- Deployed Lambda.
+- Added CloudWatch Logs metric filter (TasteProfileInvocations).
+
+### Day 4 – HTTP API Gateway
+- Created **HTTP API**.
+- Connected POST /taste-profile to Lambda.
+- Enabled CORS.
+
+### Day 5 – Frontend calling AWS
+- Updated `app.js` to call API Gateway.
+- Added loading/error states.
+
+### Day 6 – Architecture docs
+- Added `docs/week2/aws-lambda-architecture.md`
+- Added `docs/week2/api-gateway-design.md`
+- Updated README to tell a clear cloud-engineering story.
