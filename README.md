@@ -104,3 +104,9 @@ Goal: Move the “taste profile” logic into AWS so the app looks and behaves l
 - Added `docs/week2/aws-lambda-architecture.md`
 - Added `docs/week2/api-gateway-design.md`
 - Updated README to tell a clear cloud-engineering story.
+
+### AWS Proof (Week 2)
+Screenshots: `docs/week2/screenshots/`
+- Lambda test success output
+- CloudWatch Logs for invocation
+- API Gateway POST /taste-profile response
