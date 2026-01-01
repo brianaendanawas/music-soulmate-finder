@@ -1,0 +1,13 @@
+{
+  "user_id": "demo_user_001",
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "favorite_artists": ["NCT 127", "BLACKPINK", "NewJeans"],
+  "top_genres": ["k-pop", "k-pop girl group", "k-pop boy group"],
+  "top_tracks": ["Fact Check", "Jump", "Hype Boy"],
+  "stats": {
+    "artist_count": 3,
+    "genre_variety": 3,
+    "track_count": 3
+  }
+}
