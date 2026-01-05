@@ -1,95 +1,89 @@
-"""
-handler.py
-
-AWS Lambda handler for building a music taste profile.
-
-Supported event formats:
-
-1) Direct invocation (used by test_lambda_locally.py and console test):
-
-{
-  "items": {
-    "user_id": "spotify:user:123",
-    "top_artists": [...],
-    "top_genres": [...],
-    "top_tracks": [...]
-  }
-}
-
-2) API Gateway HTTP API (Lambda proxy integration, JSON body):
-
-{
-  "version": "2.0",
-  "routeKey": "POST /taste-profile",
-  "rawPath": "/taste-profile",
-  "body": "{\"items\": { ... }}",
-  ...
-}
-"""
+from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from decimal import Decimal
+from typing import Any, Dict, Tuple
 
 from build_taste_profile import build_taste_profile
+from profile_store import save_profile
 
 
-def _extract_items_from_event(event: Dict[str, Any]) -> Dict[str, Any] | None:
+def _json_safe(value: Any) -> Any:
+    """Convert Decimal (from DynamoDB) into int/float so json.dumps works."""
+    if isinstance(value, Decimal):
+        if value % 1 == 0:
+            return int(value)
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    return value
+
+
+def _parse_event(event: Dict[str, Any]) -> Tuple[str, Any]:
     """
-    Try to extract the 'items' dict from either:
-    - direct invocation: event["items"]
-    - HTTP API event: json.loads(event["body"])["items"]
+    Supports:
+    1) Direct Lambda test event
+    2) API Gateway HTTP API (proxy integration)
     """
-    # Case 1: direct invocation from test_lambda_locally.py or Lambda console test
-    if "items" in event:
-        return event["items"]
+    if "body" in event and event["body"] is not None:
+        body = event["body"]
+        if isinstance(body, str):
+            payload = json.loads(body)
+        elif isinstance(body, dict):
+            payload = body
+        else:
+            raise ValueError("Unsupported body type")
+    else:
+        payload = event
 
-    # Case 2: HTTP API event with JSON body
-    body = event.get("body")
-    if body is None:
-        return None
+    user_id = payload.get("user_id") or payload.get("userId")
+    items = payload.get("items")
 
+    if not user_id:
+        raise ValueError("Missing required field: user_id")
+    if not isinstance(items, list):
+        raise ValueError("Missing or invalid required field: items (must be a list)")
+
+    return user_id, items
+
+
+def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
     try:
-        body_obj = json.loads(body)
-    except json.JSONDecodeError:
-        print("TasteProfile error: body is not valid JSON")
-        return None
+        user_id, items = _parse_event(event)
 
-    items = body_obj.get("items")
-    return items
+        # 1) Build taste profile
+        profile = build_taste_profile(items)
+        profile["user_id"] = user_id
 
 
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    Main AWS Lambda entry point.
-    Works with both:
-    - direct invocation events
-    - API Gateway HTTP API events
-    """
-    print("TasteProfile invocation received")
-    print(f"Raw event keys: {list(event.keys())}")
+        # 2) Save to DynamoDB
+        save_profile(user_id=user_id, profile=profile)
 
-    items = _extract_items_from_event(event)
+        print(f"Profile saved for user_id={user_id}")
 
-    if items is None:
-        error_body = {
-            "error": "Missing 'items' in event. Expected either event['items'] "
-                     "or a JSON body with an 'items' field."
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": json.dumps({
+                "ok": True,
+                "user_id": user_id,
+                "profile": _json_safe(profile),
+            }),
         }
 
-        print("TasteProfile error: could not find 'items' in event")
+    except Exception as e:
+        print(f"ERROR: {str(e)}")
+
         return {
             "statusCode": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(error_body),
+            "headers": {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+            },
+            "body": json.dumps({"ok": False, "error": str(e)}),
         }
-
-    profile = build_taste_profile(items)
-
-    user_id = items.get("user_id", "unknown-user")
-    print(f"TasteProfile built successfully for user_id={user_id}")
-
-    return {
-        "statusCode": 200,
-        "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(profile, ensure_ascii=False),
-    }

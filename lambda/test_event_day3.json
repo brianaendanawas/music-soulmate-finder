@@ -1,0 +1,7 @@
+{
+  "user_id": "briana_test_001",
+  "items": [
+    { "name": "Song A", "artist": "Artist 1", "genres": ["pop"], "popularity": 80 },
+    { "name": "Song B", "artist": "Artist 2", "genres": ["r&b"], "popularity": 65 }
+  ]
+}

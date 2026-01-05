@@ -110,3 +110,15 @@ Screenshots: `docs/week2/screenshots/`
 - Lambda test success output
 - CloudWatch Logs for invocation
 - API Gateway POST /taste-profile response
+
+### Week 3 – Persist Taste Profiles (DynamoDB)
+
+- Lambda builds and persists music taste profiles
+- Profiles are overwritten by `user_id`
+- CloudWatch logs confirm successful saves
+
+**Proof**
+
+![DynamoDB saved profiles](docs/week3/screenshots/dynamodb-saved-profiles.png)  
+![Lambda test success](docs/week3/screenshots/lambda-test-success.png)  
+![CloudWatch log confirmation](docs/week3/screenshots/cloudwatch-profile-saved.png)
