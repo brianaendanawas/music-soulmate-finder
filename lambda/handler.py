@@ -1,89 +1,159 @@
 from __future__ import annotations
 
 import json
-from decimal import Decimal
-from typing import Any, Dict, Tuple
+import os
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
+
+import boto3
 
 from build_taste_profile import build_taste_profile
-from profile_store import save_profile
+from matching import compute_match_score
+
+dynamodb = boto3.resource("dynamodb")
+
+TABLE_NAME = os.environ.get("DDB_TABLE_NAME", "music-soulmate-profiles")
+table = dynamodb.Table(TABLE_NAME)
+
+ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
 
 
-def _json_safe(value: Any) -> Any:
-    """Convert Decimal (from DynamoDB) into int/float so json.dumps works."""
-    if isinstance(value, Decimal):
-        if value % 1 == 0:
-            return int(value)
-        return float(value)
-    if isinstance(value, dict):
-        return {k: _json_safe(v) for k, v in value.items()}
-    if isinstance(value, list):
-        return [_json_safe(v) for v in value]
-    return value
+def _json_response(status_code: int, body: Any) -> Dict[str, Any]:
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+            "Access-Control-Allow-Headers": "content-type",
+            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        },
+        "body": json.dumps(body),
+    }
 
 
-def _parse_event(event: Dict[str, Any]) -> Tuple[str, Any]:
-    """
-    Supports:
-    1) Direct Lambda test event
-    2) API Gateway HTTP API (proxy integration)
-    """
-    if "body" in event and event["body"] is not None:
-        body = event["body"]
-        if isinstance(body, str):
-            payload = json.loads(body)
-        elif isinstance(body, dict):
-            payload = body
-        else:
-            raise ValueError("Unsupported body type")
-    else:
-        payload = event
-
-    user_id = payload.get("user_id") or payload.get("userId")
-    items = payload.get("items")
-
-    if not user_id:
-        raise ValueError("Missing required field: user_id")
-    if not isinstance(items, list):
-        raise ValueError("Missing or invalid required field: items (must be a list)")
-
-    return user_id, items
+def _get_method_path(event: Dict[str, Any]) -> Tuple[str, str]:
+    rc = event.get("requestContext", {}) or {}
+    http = rc.get("http", {}) or {}
+    method = (http.get("method") or event.get("httpMethod") or "").upper()
+    path = http.get("path") or event.get("path") or ""
+    return method, path
 
 
-def lambda_handler(event: Dict[str, Any], context) -> Dict[str, Any]:
+def _read_json_body(event: Dict[str, Any]) -> Dict[str, Any]:
+    body = event.get("body")
+    if not body:
+        return {}
+    if isinstance(body, dict):
+        return body
     try:
-        user_id, items = _parse_event(event)
-
-        # 1) Build taste profile
-        profile = build_taste_profile(items)
-        profile["user_id"] = user_id
+        return json.loads(body)
+    except json.JSONDecodeError:
+        return {}
 
 
-        # 2) Save to DynamoDB
-        save_profile(user_id=user_id, profile=profile)
+def _get_path_param(event: Dict[str, Any], name: str) -> Optional[str]:
+    params = event.get("pathParameters") or {}
+    val = params.get(name)
+    if isinstance(val, str) and val.strip():
+        return val.strip()
+    return None
 
-        print(f"Profile saved for user_id={user_id}")
 
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-            "body": json.dumps({
-                "ok": True,
-                "user_id": user_id,
-                "profile": _json_safe(profile),
-            }),
+def _safe_int(val: Optional[str], default: int) -> int:
+    try:
+        return int(val) if val is not None else default
+    except Exception:
+        return default
+
+
+def _scan_all_profiles(exclude_user_id: str) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    scan_kwargs: Dict[str, Any] = {}
+
+    while True:
+        resp = table.scan(**scan_kwargs)
+        for it in resp.get("Items", []):
+            if it.get("user_id") != exclude_user_id:
+                items.append(it)
+
+        last_key = resp.get("LastEvaluatedKey")
+        if not last_key:
+            break
+        scan_kwargs["ExclusiveStartKey"] = last_key
+
+    return items
+
+
+def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
+    data = _read_json_body(event)
+
+    user_id = data.get("user_id")
+    if not isinstance(user_id, str) or not user_id.strip():
+        return _json_response(400, {"error": "Missing required field: user_id"})
+
+    profile = build_taste_profile(data)
+    now = datetime.now(timezone.utc).isoformat()
+
+    table.put_item(
+        Item={
+            "user_id": user_id,
+            "profile": profile,
+            "updated_at": now,
         }
+    )
 
-    except Exception as e:
-        print(f"ERROR: {str(e)}")
+    return _json_response(200, {"message": "Profile saved", "user_id": user_id})
 
-        return {
-            "statusCode": 400,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-            "body": json.dumps({"ok": False, "error": str(e)}),
-        }
+
+def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
+    user_id = _get_path_param(event, "user_id")
+    if not user_id:
+        return _json_response(400, {"error": "Missing path param: user_id"})
+
+    qs = event.get("queryStringParameters") or {}
+    limit = _safe_int(qs.get("limit") if isinstance(qs, dict) else None, 10)
+    limit = max(1, min(limit, 25))
+
+    me = table.get_item(Key={"user_id": user_id}).get("Item")
+    if not me:
+        return _json_response(404, {"error": f"No profile found for {user_id}"})
+
+    me_profile = me.get("profile", {})
+    others = _scan_all_profiles(exclude_user_id=user_id)
+
+    matches = []
+    for it in others:
+        scored = compute_match_score(me_profile, it.get("profile", {}))
+        matches.append(
+            {
+                "user_id": it["user_id"],
+                "score": scored.get("match_score", 0),
+                "shared_artists": scored.get("shared_artists", []),
+                "shared_genres": scored.get("shared_genres", []),
+                "shared_tracks": scored.get("shared_tracks", []),
+            }
+        )
+
+    matches.sort(key=lambda m: m["score"], reverse=True)
+
+    return _json_response(
+        200,
+        {"for_user_id": user_id, "limit": limit, "matches": matches[:limit]},
+    )
+
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    method, path = _get_method_path(event)
+
+    if method == "OPTIONS":
+        return _json_response(200, {"ok": True})
+
+    if method == "POST" and path.endswith("/taste-profile"):
+        return handle_post_taste_profile(event)
+
+    if method == "GET" and path.startswith("/matches/"):
+        if not (event.get("pathParameters") or {}).get("user_id"):
+            event["pathParameters"] = {"user_id": path.split("/matches/", 1)[-1]}
+        return handle_get_matches(event)
+
+    return _json_response(404, {"error": "Route not found"})

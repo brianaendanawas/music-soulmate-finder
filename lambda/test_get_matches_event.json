@@ -1,0 +1,14 @@
+{
+  "requestContext": {
+    "http": {
+      "method": "GET",
+      "path": "/matches/briana_test_002"
+    }
+  },
+  "pathParameters": {
+    "user_id": "briana_test_002"
+  },
+  "queryStringParameters": {
+    "limit": "5"
+  }
+}
