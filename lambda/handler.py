@@ -12,7 +12,11 @@ from matching import compute_match_score
 
 dynamodb = boto3.resource("dynamodb")
 
-TABLE_NAME = os.environ.get("DDB_TABLE_NAME", "music-soulmate-profiles")
+TABLE_NAME = (
+    os.environ.get("DDB_TABLE_NAME")
+    or os.environ.get("TABLE_NAME")
+    or "music-soulmate-profiles"
+)
 table = dynamodb.Table(TABLE_NAME)
 
 ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "*")
@@ -114,12 +118,18 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     limit = _safe_int(qs.get("limit") if isinstance(qs, dict) else None, 10)
     limit = max(1, min(limit, 25))
 
+    # LOG LINE #1
+    print(f"Computing matches for user_id={user_id}, limit={limit}")
+
     me = table.get_item(Key={"user_id": user_id}).get("Item")
     if not me:
         return _json_response(404, {"error": f"No profile found for {user_id}"})
 
     me_profile = me.get("profile", {})
     others = _scan_all_profiles(exclude_user_id=user_id)
+
+    # LOG LINE #2
+    print(f"Scanned {len(others)} other profiles from table={TABLE_NAME}")
 
     matches = []
     for it in others:

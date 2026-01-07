@@ -122,3 +122,28 @@ Screenshots: `docs/week2/screenshots/`
 ![DynamoDB saved profiles](docs/week3/screenshots/dynamodb-saved-profiles.png)  
 ![Lambda test success](docs/week3/screenshots/lambda-test-success.png)  
 ![CloudWatch log confirmation](docs/week3/screenshots/cloudwatch-profile-saved.png)
+
+## Week 3: Music Matching + DynamoDB (AWS)
+
+### What’s working
+- ✅ POST `/taste-profile` builds and saves taste profiles to DynamoDB
+- ✅ GET `/matches/{user_id}?limit=10` returns a ranked list of matches
+- ✅ Matching is explainable: scan → score → sort → top N
+
+### Architecture
+API Gateway (HTTP API)  
+↓  
+Lambda (handler.py: save + match routes)  
+↓  
+DynamoDB (Profiles)
+
+### Docs (Week 3)
+- [AWS Architecture](docs/week3/aws-architecture.md)
+- [Profile Storage](docs/week3/profile-storage.md)
+- [Matching Logic](docs/week3/matching-logic.md)
+
+### Quick test (PowerShell)
+```powershell
+$BASE = "https://YOUR_API_ID.execute-api.us-east-1.amazonaws.com"
+Invoke-RestMethod "$BASE/matches/briana_test_002"
+Invoke-RestMethod "$BASE/matches/briana_test_002?limit=5"
