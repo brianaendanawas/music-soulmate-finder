@@ -119,9 +119,9 @@ Screenshots: `docs/week2/screenshots/`
 
 **Proof**
 
-![DynamoDB saved profiles](docs/week3/screenshots/dynamodb-saved-profiles.png)  
-![Lambda test success](docs/week3/screenshots/lambda-test-success.png)  
-![CloudWatch log confirmation](docs/week3/screenshots/cloudwatch-profile-saved.png)
+![DynamoDB](docs/week3/screenshots/week3-03-dynamodb-profiles.png)  
+![Lambda Matches](docs/week3/screenshots/week3-05-lambda-matches-success.png)  
+![CloudWatch](docs/week3/screenshots/week3-03-cloudwatch-profile-saved.png)
 
 ## Week 3: Music Matching + DynamoDB (AWS)
 
