@@ -37,3 +37,12 @@ If two users share:
 - 1 track   → 1*1 = 1
 
 Total match_score = 9
+
+## Matching logic (explainable)
+Each pair of users is compared by overlap:
+
+- Shared artists (highest weight)
+- Shared genres (medium weight)
+- Shared tracks (lowest weight)
+
+A single similarity score is computed, results are sorted, and the top matches are returned along with shared items for transparency.
