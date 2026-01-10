@@ -102,3 +102,6 @@ Invoke-RestMethod "$BASE/matches/briana_test_002?limit=5"
 - Improved matching weights and normalization
 - Short / medium / long-term Spotify data toggle
 - Ability to hide artists or tracks (frontend first, DynamoDB later)
+
+## Demo client (Week 4)
+A minimal HTML/JS demo client is included in `demo/` to call the deployed API and display match results.
