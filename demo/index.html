@@ -17,49 +17,63 @@
       </header>
 
       <section class="card">
-        <div class="row">
-          <label for="userId">User ID</label>
-          <input
-            id="userId"
-            type="text"
-            placeholder="e.g., briana_test_002"
-            autocomplete="off"
-          />
-        </div>
+        <form id="form" class="form">
+          <div class="row">
+            <label for="userId">User ID</label>
+            <input
+              id="userId"
+              type="text"
+              placeholder="e.g., briana_test_002"
+              autocomplete="off"
+            />
+          </div>
 
-        <div class="row">
-          <label for="limit">Limit</label>
-          <input id="limit" type="number" min="1" max="20" value="10" />
-        </div>
+          <div class="row">
+            <label for="limit">Limit</label>
+            <input id="limit" type="number" min="1" max="20" value="10" />
+          </div>
 
-        <div class="actions">
-          <button id="btnFind">Find Matches</button>
-          <button id="btnSample" class="secondary">Use Sample</button>
-        </div>
+          <div class="actions">
+            <button id="btnFind" type="submit">Find Matches</button>
+            <button id="btnSample" type="button" class="secondary">Use Sample</button>
+            <button id="btnClear" type="button" class="secondary">Clear</button>
+          </div>
 
-        <p class="hint">
-          API base URL is set in <code>demo/app.js</code>.
-        </p>
+          <p class="hint">
+            Backend: API Gateway → Lambda → DynamoDB.
+            <span class="muted">API base URL is set in <code>demo/app.js</code>.</span>
+          </p>
+        </form>
       </section>
 
       <section class="card">
         <div class="status">
           <span id="statusDot" class="dot idle"></span>
           <span id="statusText">Idle</span>
+          <span id="statusMeta" class="meta"></span>
         </div>
 
-        <h2>Results</h2>
+        <div id="errorBox" class="alert hidden"></div>
+
+        <div class="resultsHeader">
+          <h2>Results</h2>
+          <div class="resultsActions">
+            <button id="btnCopy" type="button" class="secondary small" disabled>
+              Copy JSON
+            </button>
+          </div>
+        </div>
 
         <div id="summary" class="summary hidden"></div>
-
         <pre id="output" class="output">// Results will appear here</pre>
 
+        <p class="footnote">
+          If PowerShell works but the browser fails, it’s usually CORS.
+        </p>
       </section>
 
       <footer class="footer">
-        <p>
-          Built for portfolio demo purposes. Backend: API Gateway → Lambda → DynamoDB.
-        </p>
+        <p>Portfolio demo client (no frameworks).</p>
       </footer>
     </main>
 

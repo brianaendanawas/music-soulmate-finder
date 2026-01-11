@@ -1,26 +1,54 @@
-// Music Soulmate Finder — Minimal Demo Client
+// Music Soulmate Finder — Minimal Demo Client (Polished)
 // Calls: GET /matches/{user_id}?limit=N
 
 const API_BASE = "https://7rn3olmit4.execute-api.us-east-1.amazonaws.com";
 
 const els = {
+  form: document.getElementById("form"),
   userId: document.getElementById("userId"),
   limit: document.getElementById("limit"),
   btnFind: document.getElementById("btnFind"),
   btnSample: document.getElementById("btnSample"),
+  btnClear: document.getElementById("btnClear"),
+  btnCopy: document.getElementById("btnCopy"),
   output: document.getElementById("output"),
   summary: document.getElementById("summary"),
+  errorBox: document.getElementById("errorBox"),
   statusDot: document.getElementById("statusDot"),
   statusText: document.getElementById("statusText"),
+  statusMeta: document.getElementById("statusMeta"),
 };
 
-function setStatus(state, text) {
+let lastJsonText = "";
+
+function setStatus(state, text, meta = "") {
   els.statusDot.className = `dot ${state}`;
   els.statusText.textContent = text;
+  els.statusMeta.textContent = meta;
+}
+
+function showError(message) {
+  els.errorBox.textContent = message;
+  els.errorBox.classList.remove("hidden");
+}
+
+function clearError() {
+  els.errorBox.textContent = "";
+  els.errorBox.classList.add("hidden");
 }
 
 function setOutput(obj) {
-  els.output.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+  if (typeof obj === "string") {
+    els.output.textContent = obj;
+    lastJsonText = "";
+    els.btnCopy.disabled = true;
+    return;
+  }
+
+  const pretty = JSON.stringify(obj, null, 2);
+  els.output.textContent = pretty;
+  lastJsonText = pretty;
+  els.btnCopy.disabled = false;
 }
 
 function showSummary(matches, forUserId, limit) {
@@ -35,11 +63,11 @@ function showSummary(matches, forUserId, limit) {
     : "No matches returned.";
 
   els.summary.innerHTML = `
-    <strong>For:</strong> ${forUserId}
+    <strong>For:</strong> ${escapeHtml(forUserId)}
     &nbsp; • &nbsp;
-    <strong>Limit:</strong> ${limit}
+    <strong>Limit:</strong> ${escapeHtml(String(limit))}
     <br/>
-    ${topLine}
+    ${escapeHtml(topLine)}
   `;
   els.summary.classList.remove("hidden");
 }
@@ -50,29 +78,53 @@ function buildUrl(userId, limit) {
   return `${API_BASE}/matches/${encodedUserId}?limit=${encodedLimit}`;
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function normalizeMatchesResponse(data) {
+  // Your API returns: { for_user_id, limit, matches: [...] }
+  // But we handle both shapes safely.
+  const matches = data?.matches ?? data;
+
+  // Optional polish: remove 0-score matches to reduce noise
+  if (Array.isArray(matches)) {
+    return matches.filter((m) => Number(m?.score ?? 0) > 0);
+  }
+
+  return matches;
+}
+
 async function fetchMatches() {
+  clearError();
+
   const userId = els.userId.value.trim();
   const limit = Number(els.limit.value || 10);
 
   if (!userId) {
     setStatus("error", "Missing user_id");
-    setOutput("Please enter a user_id (example: briana_test_002).");
+    showError("Please enter a user_id (example: briana_test_002).");
+    setOutput("// Results will appear here");
+    els.summary.classList.add("hidden");
     return;
   }
 
   const url = buildUrl(userId, limit);
 
   els.btnFind.disabled = true;
-  setStatus("loading", "Loading…");
+  setStatus("loading", "Loading…", url);
   els.summary.classList.add("hidden");
   setOutput(`Requesting:\n${url}\n\n…`);
 
   try {
     const res = await fetch(url, {
       method: "GET",
-      headers: {
-        "Accept": "application/json",
-      },
+      headers: { Accept: "application/json" },
     });
 
     const text = await res.text();
@@ -84,41 +136,97 @@ async function fetchMatches() {
     }
 
     if (!res.ok) {
-      setStatus("error", `HTTP ${res.status}`);
+      setStatus("error", `HTTP ${res.status}`, url);
+
+      const msg =
+        typeof data === "string"
+          ? data
+          : data?.message || data?.error || "Request failed";
+
+      showError(
+        `Request failed (HTTP ${res.status}). ${msg} ${
+          res.status === 404 ? "Check user_id exists in DynamoDB." : ""
+        }`
+      );
+
       setOutput({
         error: "Request failed",
         status: res.status,
         response: data,
         tip:
-          "If this is a CORS error in the browser console, enable CORS for this route in API Gateway.",
+          "If this works in PowerShell but fails in the browser, it's usually CORS. Enable CORS in API Gateway for GET/OPTIONS.",
       });
       return;
     }
 
-    // Your Lambda returns an object like: { for_user_id, limit, matches: [...] }
-    const matches = data && data.matches ? data.matches : data;
+    // Create a cleaned view for summary
+    const cleanedMatches = normalizeMatchesResponse(data);
 
-    setStatus("ok", "Success");
-    showSummary(matches, userId, limit);
-    setOutput(data);
+    setStatus("ok", "Success", url);
+
+    // If we filtered matches, preserve your original response shape but replace matches list
+    if (data && typeof data === "object" && "matches" in data) {
+      const patched = { ...data, matches: cleanedMatches };
+      showSummary(cleanedMatches, userId, limit);
+      setOutput(patched);
+    } else {
+      showSummary(cleanedMatches, userId, limit);
+      setOutput(data);
+    }
   } catch (err) {
-    setStatus("error", "Network error");
+    setStatus("error", "Network error", url);
+    showError(
+      "Network error. If PowerShell works but the browser fails, it’s almost always CORS."
+    );
     setOutput({
       error: "Network error",
       message: err?.message || String(err),
       tip:
-        "If this works in PowerShell but not in the browser, it is almost always CORS.",
+        "If this works in PowerShell but not in the browser, enable CORS in API Gateway.",
     });
   } finally {
     els.btnFind.disabled = false;
   }
 }
 
-els.btnFind.addEventListener("click", fetchMatches);
-
-els.btnSample.addEventListener("click", () => {
+function loadSample() {
   els.userId.value = "briana_test_002";
   els.limit.value = "10";
+  clearError();
   setStatus("idle", "Sample loaded");
+  els.summary.classList.add("hidden");
   setOutput("// Click “Find Matches” to run the demo.");
+}
+
+function clearAll() {
+  els.userId.value = "";
+  els.limit.value = "10";
+  clearError();
+  setStatus("idle", "Idle");
+  els.summary.classList.add("hidden");
+  setOutput("// Results will appear here");
+}
+
+async function copyJson() {
+  if (!lastJsonText) return;
+  try {
+    await navigator.clipboard.writeText(lastJsonText);
+    setStatus("ok", "Copied JSON ✅", els.statusMeta.textContent);
+    setTimeout(() => setStatus("ok", "Success", els.statusMeta.textContent), 900);
+  } catch {
+    showError("Could not copy to clipboard (browser permission).");
+  }
+}
+
+// Submit on Enter
+els.form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  fetchMatches();
 });
+
+els.btnSample.addEventListener("click", loadSample);
+els.btnClear.addEventListener("click", clearAll);
+els.btnCopy.addEventListener("click", copyJson);
+
+// Initialize
+clearAll();

@@ -4,6 +4,7 @@
   --muted: #6b7280;
   --bg: #ffffff;
   --soft: #f9fafb;
+  --shadow: 0 8px 30px rgba(17, 24, 39, 0.06);
 }
 
 * {
@@ -19,18 +20,19 @@ body {
 }
 
 .container {
-  max-width: 860px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 26px;
 }
 
 .header {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 h1 {
   margin: 0 0 6px 0;
-  font-size: 32px;
+  font-size: 34px;
+  letter-spacing: -0.02em;
 }
 
 .subtitle {
@@ -41,9 +43,14 @@ h1 {
 .card {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 18px;
+  padding: 18px;
   margin: 16px 0;
+  box-shadow: var(--shadow);
+}
+
+.form {
+  margin: 0;
 }
 
 .row {
@@ -51,7 +58,7 @@ h1 {
   grid-template-columns: 120px 1fr;
   gap: 12px;
   align-items: center;
-  margin: 10px 0;
+  margin: 12px 0;
 }
 
 label {
@@ -70,15 +77,16 @@ input {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 button {
   border: 1px solid var(--border);
   background: #111827;
   color: white;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-radius: 12px;
   cursor: pointer;
   font-size: 14px;
@@ -87,6 +95,12 @@ button {
 button.secondary {
   background: white;
   color: var(--text);
+}
+
+button.small {
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 button:disabled {
@@ -99,24 +113,36 @@ button:disabled {
   margin: 12px 0 0 0;
   color: var(--muted);
   font-size: 13px;
+  line-height: 1.4;
+}
+
+.muted {
+  color: var(--muted);
 }
 
 .output {
   background: #0b1020;
   color: #e5e7eb;
-  border-radius: 12px;
-  padding: 12px;
+  border-radius: 14px;
+  padding: 14px;
   overflow: auto;
-  min-height: 160px;
+  min-height: 170px;
+  border: 1px solid rgba(229, 231, 235, 0.15);
 }
 
 .status {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   color: var(--muted);
   font-size: 14px;
+}
+
+.meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .dot {
@@ -148,6 +174,23 @@ button:disabled {
   padding: 10px 12px;
   margin: 10px 0;
   background: #fff;
+}
+
+.alert {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+  color: #991b1b;
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.resultsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .hidden {
