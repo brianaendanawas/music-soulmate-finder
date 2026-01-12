@@ -1,107 +1,158 @@
-# Music Soulmate Finder 💚
+# Music Soulmate Finder 💚 (AWS Serverless)
 
-A serverless, AWS-based backend that builds music taste profiles and returns ranked “music soulmate” matches based on shared artists, genres, and tracks.
+A lightweight serverless backend that builds and stores music taste profiles and returns **ranked “music soulmate” matches** using a simple, explainable scoring algorithm.
 
-## Why this project
-I built this project to demonstrate real cloud engineering skills using AWS serverless services, including API design, data modeling, and an explainable matching algorithm — all within AWS Free Tier limits.
-
-## What’s working
-- ✅ **POST `/taste-profile`** builds and stores a user’s taste profile in DynamoDB
-- ✅ **GET `/matches/{user_id}`** returns ranked music matches
-- ✅ Optional `limit` query parameter supported
-- ✅ Matching logic is explainable (shared artists, genres, tracks included)
-- ✅ CloudWatch Logs used for debugging and verification
+> Portfolio project: API Gateway → AWS Lambda (Python) → DynamoDB
 
 ---
 
-## How it works (2-minute overview)
+## Why this exists (Problem → Solution)
 
-1) **Build taste profile**  
-A Lambda function processes Spotify listening data and creates a normalized taste profile.
+**Problem:** Music-based matching systems often become opaque “black boxes” or require full applications with authentication, large datasets, and complex pipelines.
 
-2) **Store profile**  
-The profile is saved in DynamoDB using `user_id` as the partition key (overwritten on updates).
+**Solution:** This project keeps the scope intentionally small and clear:
+- Store each user’s music taste profile in DynamoDB
+- Compare users using a transparent scoring formula
+- Return ranked matches through a simple API endpoint
 
-3) **Find matches**  
-To find music soulmates, the system:
-- loads the current user profile
-- scans other stored profiles
-- computes a similarity score
-- sorts results
-- returns the top matches
-
-### Architecture (AWS)
-
-Client  
-↓  
-API Gateway (HTTP API)  
-↓  
-Lambda (Python)  
-↓  
-DynamoDB (Profiles)
+The result is easy to demo, easy to explain, and easy to extend.
 
 ---
 
-## API
+## What it does
 
-**Base URL**
-https://7rn3olmit4.execute-api.us-east-1.amazonaws.com
+### ✅ Features
+- Build a **music taste profile** (artists, genres, tracks)
+- Persist profiles in DynamoDB using `user_id`
+- Compute **ranked matches** between users
+- Return shared artists / genres / tracks with scores
+- Minimal demo client (plain HTML + JS) for browser proof
 
-### Endpoints
+---
 
-- **POST `/taste-profile`**  
-  Builds a taste profile and stores it in DynamoDB.
+## Tech Stack (AWS-focused)
 
-- **GET `/matches/{user_id}`**  
-  Returns ranked matches for a given user.
+- **API Gateway (HTTP API)** — public endpoints
+- **AWS Lambda (Python)** — profile storage & matching logic
+- **Amazon DynamoDB** — persistent profile storage (on-demand)
+- **CloudWatch Logs** — debugging and execution proof
+- *(Optional)* demo client: plain HTML/CSS/JS
 
-- **Optional query parameter**
-?limit=5
+---
 
-### Example request
-GET /matches/briana_test_002?limit=5
+## Architecture
 
-### Example response
+Browser Demo
+|
+v
+API Gateway (HTTP API)
+|
+v
+AWS Lambda (Python)
+
+build/store profile
+
+compute matches
+|
+v
+DynamoDB (Profiles Table)
+
+---
+
+## API Endpoints
+
+### `GET /matches/{user_id}?limit=10`
+
+Returns a ranked list of the most similar users.
+
+**Example response**
 ```json
-[
-  {
-    "user_id": "briana_test_001",
-    "score": 12,
-    "shared_artists": ["NCT 127"],
-    "shared_genres": ["k-pop"],
-    "shared_tracks": ["Fact Check"]
+{
+  "for_user_id": "briana_test_002",
+  "limit": 10,
+  "matches": [
+    {
+      "user_id": "spotify:user:abc",
+      "score": 12,
+      "shared_artists": ["NCT 127"],
+      "shared_genres": ["k-pop"],
+      "shared_tracks": ["Sticker"]
+    }
+  ]
+}
+```
+
+## How matching works (Simple + explainable)
+
+Each pair of users receives a score:
+
+score =
+  (shared_artists * 3)
++ (shared_genres  * 2)
++ (shared_tracks  * 1)
+
+Steps:
+
+1. Fetch the current user’s profile
+2. Scan other profiles in DynamoDB
+3. Compute score + shared elements
+4. Sort descending
+5. Return top N matches
+
+Why these weights?
+- Artists → strongest signal
+- Genres → broader signal
+- Tracks → can be one-off listens
+
+## DynamoDB Data Model
+- Partition key: user_id (string)
+- Attributes: taste profile data
+
+Example:
+```json
+{
+  "user_id": "briana_test_002",
+  "taste_profile": {
+    "top_artists": ["..."],
+    "top_genres": ["..."],
+    "top_tracks": ["..."]
   }
-]
+}
+```
+## Proof / Screenshots
+### DynamoDB profile stored
+![DynamoDB profile stored](docs/week3/screenshots/week3-03-dynamodb-profiles.png)
+### Match endpoint response
+![Match endpoint response](docs/week3/screenshots/week3-07-matches-response.png)
+### API Gateway routes
+![API Gateway routes](docs/week4/screenshots/week4-02-api-gateway-routes.png)
+### Demo client success
+![Demo client success](docs/week4/screenshots/week4-02-demo-success.png)
+
+## Running the demo
+
+The demo is a plain HTML/JS page that calls the API.
+
+1. Set your API base URL in:
+```bash
+demo/app.js
 ```
 
-## Tech stack (AWS-focused)
-- AWS Lambda (Python 3.12) — taste profile and matching logic
-- Amazon API Gateway (HTTP API) — REST endpoints
-- Amazon DynamoDB — user profile storage
-- Amazon CloudWatch Logs — debugging and proof of execution
-
-## Quick test (PowerShell)
-```powershell
-$BASE = "https://7rn3olmit4.execute-api.us-east-1.amazonaws.com"
-Invoke-RestMethod "$BASE/matches/briana_test_002"
-Invoke-RestMethod "$BASE/matches/briana_test_002?limit=5"
+2. Run a local static server:
+```bash
+cd demo
+python3 -m http.server 5500
 ```
 
-## Project documentation
-- Architecture: docs/week3/aws-architecture.md
-- Profile storage: docs/week3/profile-storage.md
-- Matching logic: docs/week3/matching-logic.md
+3. Open:
+http://localhost:5500
 
-## Proof (screenshots)
-![DynamoDB](docs/week3/screenshots/week3-03-dynamodb-profiles.png)  
-![Lambda Matches](docs/week3/screenshots/week3-05-lambda-matches-success.png)  
-![CloudWatch](docs/week3/screenshots/week3-03-cloudwatch-profile-saved.png)
+## Future Improvements
+- Spotify OAuth (real user identity)
+- Authentication / rate limiting
+- Improved scoring (normalization, sparse profiles)
+- Avoid full table scans (indexes or precomputed matches)
+- User preferences (hide artists/tracks, time range toggle)
 
-## Future improvements
-- Spotify OAuth authentication
-- Improved matching weights and normalization
-- Short / medium / long-term Spotify data toggle
-- Ability to hide artists or tracks (frontend first, DynamoDB later)
-
-## Demo client (Week 4)
-A minimal HTML/JS demo client is included in `demo/` to call the deployed API and display match results.
+## Notes
+This project is intentionally small and demo-friendly, but structured like a real backend system: clean APIs, persistent storage, explainable logic, and proof screenshots.
