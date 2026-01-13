@@ -1,5 +1,7 @@
 # Music Soulmate Finder 💚 (AWS Serverless)
 
+**Status:** Prototype / active build — current milestone focuses on AWS serverless backend + matching logic. Planned improvements include Spotify OAuth and stronger auth.
+
 A lightweight serverless backend that builds and stores music taste profiles and returns **ranked “music soulmate” matches** using a simple, explainable scoring algorithm.
 
 > Portfolio project: API Gateway → AWS Lambda (Python) → DynamoDB
@@ -41,23 +43,20 @@ The result is easy to demo, easy to explain, and easy to extend.
 ---
 
 ## Architecture
-
-Browser Demo
+```md
+Browser Demo (optional)
 |
 v
 API Gateway (HTTP API)
 |
 v
 AWS Lambda (Python)
-
-build/store profile
-
-compute matches
-|
-v
-DynamoDB (Profiles Table)
-
----
+- build/store profile
+- compute matches
+  |
+  v
+  DynamoDB (Profiles Table)
+```
 
 ## API Endpoints
 
@@ -85,11 +84,12 @@ Returns a ranked list of the most similar users.
 ## How matching works (Simple + explainable)
 
 Each pair of users receives a score:
-
+```md
 score =
   (shared_artists * 3)
 + (shared_genres  * 2)
 + (shared_tracks  * 1)
+```
 
 Steps:
 
@@ -122,12 +122,16 @@ Example:
 ## Proof / Screenshots
 ### DynamoDB profile stored
 ![DynamoDB profile stored](docs/week3/screenshots/week3-03-dynamodb-profiles.png)
+
 ### Match endpoint response
 ![Match endpoint response](docs/week3/screenshots/week3-07-matches-response.png)
+
 ### API Gateway routes
 ![API Gateway routes](docs/week4/screenshots/week4-02-api-gateway-routes.png)
+
 ### Demo client success
 ![Demo client success](docs/week4/screenshots/week4-02-demo-success.png)
+
 
 ## Running the demo
 
