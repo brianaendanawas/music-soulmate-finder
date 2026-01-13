@@ -149,7 +149,9 @@ python3 -m http.server 5500
 ```
 
 3. Open:
+```bash
 http://localhost:5500
+```
 
 ## Future Improvements
 - Spotify OAuth (real user identity)
