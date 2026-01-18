@@ -88,6 +88,26 @@ def _scan_all_profiles(exclude_user_id: str) -> List[Dict[str, Any]]:
     return items
 
 
+def _artists_preview_from_profile(profile: Dict[str, Any], limit: int = 5) -> List[str]:
+    """
+    Best-effort: extract artist names from a built taste profile.
+    Supports either:
+      - profile["top_artists"] as list[str]
+      - profile["top_artists"] as list[{"name": "..."}]
+      - profile["artists"] as list[str] or list[{"name": "..."}]
+    """
+    for key in ("top_artists", "artists"):
+        val = profile.get(key)
+        if isinstance(val, list) and val:
+            first = val[0]
+            if isinstance(first, str):
+                return [x for x in val if isinstance(x, str) and x][:limit]
+            if isinstance(first, dict) and "name" in first:
+                names = [a.get("name") for a in val if isinstance(a, dict) and a.get("name")]
+                return names[:limit]
+    return []
+
+
 def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
     data = _read_json_body(event)
 
@@ -96,6 +116,19 @@ def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
         return _json_response(400, {"error": "Missing required field: user_id"})
 
     profile = build_taste_profile(data)
+
+    display_name = data.get("display_name")
+    if not isinstance(display_name, str) or not display_name.strip():
+        display_name = user_id
+
+    bio = data.get("bio")
+    if not isinstance(bio, str):
+        bio = ""
+
+    top_preview = data.get("top_artists_preview")
+    if not isinstance(top_preview, list) or not all(isinstance(x, str) for x in top_preview):
+        top_preview = _artists_preview_from_profile(profile, limit=5)
+
     now = datetime.now(timezone.utc).isoformat()
 
     table.put_item(
@@ -103,10 +136,22 @@ def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
             "user_id": user_id,
             "profile": profile,
             "updated_at": now,
+            "display_name": display_name,
+            "bio": bio,
+            "top_artists_preview": top_preview,
         }
     )
 
-    return _json_response(200, {"message": "Profile saved", "user_id": user_id})
+    return _json_response(
+        200,
+        {
+            "message": "Profile saved",
+            "user_id": user_id,
+            "display_name": display_name,
+            "bio": bio,
+            "top_artists_preview": top_preview,
+        },
+    )
 
 
 def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -134,11 +179,18 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     matches = []
     for it in others:
         scored = compute_match_score(me_profile, it.get("profile", {}))
+
+        shared_artists = scored.get("shared_artists", []) or []
+
         matches.append(
             {
                 "user_id": it["user_id"],
+                "display_name": it.get("display_name") or it["user_id"],
+                "bio": it.get("bio") or "",
+                "top_artists_preview": it.get("top_artists_preview") or [],
                 "score": scored.get("match_score", 0),
-                "shared_artists": scored.get("shared_artists", []),
+                "shared_artist_count": len(shared_artists),
+                "shared_artists": shared_artists,
                 "shared_genres": scored.get("shared_genres", []),
                 "shared_tracks": scored.get("shared_tracks", []),
             }

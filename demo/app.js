@@ -58,8 +58,9 @@ function showSummary(matches, forUserId, limit) {
   }
 
   const top = matches[0];
+
   const topLine = top
-    ? `Top match: ${top.user_id} (score: ${top.score})`
+    ? `Top match: ${top.display_name || top.user_id} (@${top.user_id}) — ${top.shared_artist_count ?? 0} shared artists — score: ${top.score}`
     : "No matches returned.";
 
   els.summary.innerHTML = `
@@ -89,15 +90,11 @@ function escapeHtml(str) {
 
 function normalizeMatchesResponse(data) {
   // Your API returns: { for_user_id, limit, matches: [...] }
-  // But we handle both shapes safely.
-  const matches = data?.matches ?? data;
-
-  // Optional polish: remove 0-score matches to reduce noise
-  if (Array.isArray(matches)) {
-    return matches.filter((m) => Number(m?.score ?? 0) > 0);
+  // Support both shapes safely.
+  if (data && typeof data === "object" && Array.isArray(data.matches)) {
+    return data.matches;
   }
-
-  return matches;
+  return Array.isArray(data) ? data : [];
 }
 
 async function fetchMatches() {
