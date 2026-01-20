@@ -1,5 +1,6 @@
 // Music Soulmate Finder — Minimal Demo Client (Polished)
 // Calls: GET /matches/{user_id}?limit=N
+// Plus:  GET /profiles/{user_id}
 
 const API_BASE = "https://7rn3olmit4.execute-api.us-east-1.amazonaws.com";
 
@@ -17,6 +18,11 @@ const els = {
   statusDot: document.getElementById("statusDot"),
   statusText: document.getElementById("statusText"),
   statusMeta: document.getElementById("statusMeta"),
+
+  // NEW (Day 3):
+  matchList: document.getElementById("matchList"),
+  profileMeta: document.getElementById("profileMeta"),
+  profileOutput: document.getElementById("profileOutput"),
 };
 
 let lastJsonText = "";
@@ -51,6 +57,31 @@ function setOutput(obj) {
   els.btnCopy.disabled = false;
 }
 
+function setSelectedProfile(metaText, objOrText) {
+  // metaText: small line above the profile JSON
+  if (els.profileMeta) els.profileMeta.textContent = metaText;
+
+  if (!els.profileOutput) return;
+
+  if (typeof objOrText === "string") {
+    els.profileOutput.textContent = objOrText;
+    return;
+  }
+  els.profileOutput.textContent = JSON.stringify(objOrText, null, 2);
+}
+
+function clearMatchUI() {
+  if (els.matchList) {
+    els.matchList.innerHTML = `<div class="muted">Run “Find Matches” to populate this list.</div>`;
+  }
+  if (els.profileMeta) {
+    els.profileMeta.textContent = "Click a match to load their profile…";
+  }
+  if (els.profileOutput) {
+    els.profileOutput.textContent = "// Profile JSON will appear here";
+  }
+}
+
 function showSummary(matches, forUserId, limit) {
   if (!Array.isArray(matches)) {
     els.summary.classList.add("hidden");
@@ -60,7 +91,9 @@ function showSummary(matches, forUserId, limit) {
   const top = matches[0];
 
   const topLine = top
-    ? `Top match: ${top.display_name || top.user_id} (@${top.user_id}) — ${top.shared_artist_count ?? 0} shared artists — score: ${top.score}`
+    ? `Top match: ${top.display_name || top.user_id} (@${top.user_id}) — ${
+        top.shared_artist_count ?? 0
+      } shared artists — score: ${top.score}`
     : "No matches returned.";
 
   els.summary.innerHTML = `
@@ -73,10 +106,15 @@ function showSummary(matches, forUserId, limit) {
   els.summary.classList.remove("hidden");
 }
 
-function buildUrl(userId, limit) {
+function buildMatchesUrl(userId, limit) {
   const encodedUserId = encodeURIComponent(userId.trim());
   const encodedLimit = encodeURIComponent(String(limit));
   return `${API_BASE}/matches/${encodedUserId}?limit=${encodedLimit}`;
+}
+
+function buildProfileUrl(userId) {
+  const encodedUserId = encodeURIComponent(userId.trim());
+  return `${API_BASE}/profiles/${encodedUserId}`;
 }
 
 function escapeHtml(str) {
@@ -97,6 +135,89 @@ function normalizeMatchesResponse(data) {
   return Array.isArray(data) ? data : [];
 }
 
+function renderMatchList(matches) {
+  if (!els.matchList) return;
+
+  if (!Array.isArray(matches) || matches.length === 0) {
+    els.matchList.innerHTML = `<div class="muted">No matches to display.</div>`;
+    return;
+  }
+
+  els.matchList.innerHTML = matches
+    .map((m) => {
+      const name = escapeHtml(m.display_name || m.user_id);
+      const uid = escapeHtml(m.user_id);
+      const shared = escapeHtml(String(m.shared_artist_count ?? 0));
+      const score = escapeHtml(String(m.score ?? 0));
+
+      return `
+        <button class="match-item" type="button" data-user-id="${uid}">
+          <div class="match-title">${name} <span class="muted">(@${uid})</span></div>
+          <div class="match-sub muted">${shared} shared artists • score ${score}</div>
+        </button>
+      `;
+    })
+    .join("");
+
+  // click handlers
+  els.matchList.querySelectorAll(".match-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const uid = btn.getAttribute("data-user-id");
+      if (uid) fetchProfile(uid);
+    });
+  });
+}
+
+async function fetchProfile(userId) {
+  const url = buildProfileUrl(userId);
+
+  setSelectedProfile(`Loading profile: ${url}`, `Requesting:\n${url}\n\n…`);
+
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+
+    if (!res.ok) {
+      const msg =
+        typeof data === "string"
+          ? data
+          : data?.message || data?.error || "Request failed";
+
+      setSelectedProfile(
+        `Error (HTTP ${res.status}) loading profile`,
+        typeof data === "string" ? data : data
+      );
+
+      showError(
+        `Profile request failed (HTTP ${res.status}). ${msg} ${
+          res.status === 404 ? "Check user_id exists in DynamoDB." : ""
+        }`
+      );
+      return;
+    }
+
+    setSelectedProfile(`Loaded profile for ${userId}`, data);
+  } catch (err) {
+    setSelectedProfile(
+      "Network error loading profile",
+      err?.message || String(err)
+    );
+    showError(
+      "Network error loading profile. If PowerShell works but the browser fails, it’s usually CORS."
+    );
+  }
+}
+
 async function fetchMatches() {
   clearError();
 
@@ -108,15 +229,23 @@ async function fetchMatches() {
     showError("Please enter a user_id (example: briana_test_002).");
     setOutput("// Results will appear here");
     els.summary.classList.add("hidden");
+
+    // NEW: also clear match/profile panels
+    clearMatchUI();
     return;
   }
 
-  const url = buildUrl(userId, limit);
+  const url = buildMatchesUrl(userId, limit);
 
   els.btnFind.disabled = true;
   setStatus("loading", "Loading…", url);
   els.summary.classList.add("hidden");
   setOutput(`Requesting:\n${url}\n\n…`);
+
+  // NEW: reset panels for a new run
+  if (els.profileMeta) els.profileMeta.textContent = "Click a match to load their profile…";
+  if (els.profileOutput) els.profileOutput.textContent = "// Profile JSON will appear here";
+  if (els.matchList) els.matchList.innerHTML = `<div class="muted">Loading matches…</div>`;
 
   try {
     const res = await fetch(url, {
@@ -153,6 +282,9 @@ async function fetchMatches() {
         tip:
           "If this works in PowerShell but fails in the browser, it's usually CORS. Enable CORS in API Gateway for GET/OPTIONS.",
       });
+
+      // NEW: clear list/panels on failure
+      clearMatchUI();
       return;
     }
 
@@ -161,7 +293,10 @@ async function fetchMatches() {
 
     setStatus("ok", "Success", url);
 
-    // If we filtered matches, preserve your original response shape but replace matches list
+    // NEW: render clickable matches list
+    renderMatchList(cleanedMatches);
+
+    // Preserve your original response shape but replace matches list (if needed)
     if (data && typeof data === "object" && "matches" in data) {
       const patched = { ...data, matches: cleanedMatches };
       showSummary(cleanedMatches, userId, limit);
@@ -181,6 +316,9 @@ async function fetchMatches() {
       tip:
         "If this works in PowerShell but not in the browser, enable CORS in API Gateway.",
     });
+
+    // NEW: clear on network failure
+    clearMatchUI();
   } finally {
     els.btnFind.disabled = false;
   }
@@ -193,6 +331,9 @@ function loadSample() {
   setStatus("idle", "Sample loaded");
   els.summary.classList.add("hidden");
   setOutput("// Click “Find Matches” to run the demo.");
+
+  // NEW: clear panels
+  clearMatchUI();
 }
 
 function clearAll() {
@@ -202,6 +343,9 @@ function clearAll() {
   setStatus("idle", "Idle");
   els.summary.classList.add("hidden");
   setOutput("// Results will appear here");
+
+  // NEW: clear panels
+  clearMatchUI();
 }
 
 async function copyJson() {

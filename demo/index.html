@@ -65,6 +65,21 @@
         </div>
 
         <div id="summary" class="summary hidden"></div>
+
+        <!-- NEW: clickable matches + selected profile panels -->
+        <div class="panel">
+          <h3>Matches</h3>
+          <div id="matchList" class="match-list">
+            <div class="muted">Run “Find Matches” to populate this list.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Selected profile</h3>
+          <div id="profileMeta" class="muted">Click a match to load their profile…</div>
+          <pre id="profileOutput" class="output">// Profile JSON will appear here</pre>
+        </div>
+
         <pre id="output" class="output">// Results will appear here</pre>
 
         <p class="footnote">

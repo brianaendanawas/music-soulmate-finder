@@ -108,6 +108,52 @@ def _artists_preview_from_profile(profile: Dict[str, Any], limit: int = 5) -> Li
     return []
 
 
+# -------------------------
+# NEW: profile public helpers
+# -------------------------
+def _extract_genres_preview(profile: Dict[str, Any], limit: int = 5) -> List[str]:
+    """
+    Best-effort genre extraction from the stored 'profile' map.
+    Supports either:
+      - profile["top_genres"] as list[str]
+      - profile["genres"] as list[str]
+      - profile["genre_weights"] as dict[str, number] (sorted desc)
+    """
+    val = profile.get("top_genres")
+    if isinstance(val, list):
+        return [g for g in val if isinstance(g, str) and g][:limit]
+
+    val = profile.get("genres")
+    if isinstance(val, list):
+        return [g for g in val if isinstance(g, str) and g][:limit]
+
+    weights = profile.get("genre_weights")
+    if isinstance(weights, dict):
+        try:
+            items = sorted(
+                [(k, weights[k]) for k in weights.keys() if isinstance(k, str)],
+                key=lambda kv: float(kv[1]) if kv[1] is not None else 0.0,
+                reverse=True,
+            )
+            return [k for k, _ in items[:limit]]
+        except Exception:
+            return []
+
+    return []
+
+
+def _public_profile_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    profile = item.get("profile") if isinstance(item.get("profile"), dict) else {}
+    return {
+        "user_id": item.get("user_id"),
+        "display_name": item.get("display_name") or item.get("user_id"),
+        "bio": item.get("bio") or "",
+        "top_artists_preview": item.get("top_artists_preview") or [],
+        "top_genres_preview": _extract_genres_preview(profile, limit=5),
+        "updated_at": item.get("updated_at") or "",
+    }
+
+
 def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
     data = _read_json_body(event)
 
@@ -179,7 +225,6 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     matches = []
     for it in others:
         scored = compute_match_score(me_profile, it.get("profile", {}))
-
         shared_artists = scored.get("shared_artists", []) or []
 
         matches.append(
@@ -204,6 +249,22 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
+# -------------------------
+# NEW: GET /profiles/{user_id}
+# -------------------------
+def handle_get_profile(event: Dict[str, Any]) -> Dict[str, Any]:
+    user_id = _get_path_param(event, "user_id")
+    if not user_id:
+        return _json_response(400, {"error": "Missing path param: user_id"})
+
+    resp = table.get_item(Key={"user_id": user_id})
+    item = resp.get("Item")
+    if not item:
+        return _json_response(404, {"error": f"User not found: {user_id}"})
+
+    return _json_response(200, _public_profile_from_item(item))
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method, path = _get_method_path(event)
 
@@ -217,5 +278,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if not (event.get("pathParameters") or {}).get("user_id"):
             event["pathParameters"] = {"user_id": path.split("/matches/", 1)[-1]}
         return handle_get_matches(event)
+
+    # NEW ROUTE: GET /profiles/{user_id}
+    if method == "GET" and path.startswith("/profiles/"):
+        if not (event.get("pathParameters") or {}).get("user_id"):
+            event["pathParameters"] = {"user_id": path.split("/profiles/", 1)[-1]}
+        return handle_get_profile(event)
 
     return _json_response(404, {"error": "Route not found"})

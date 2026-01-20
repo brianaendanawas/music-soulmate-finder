@@ -202,3 +202,16 @@ button:disabled {
   font-size: 13px;
   margin-top: 16px;
 }
+
+.panel {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.match-item {
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
