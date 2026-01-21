@@ -215,3 +215,22 @@ button:disabled {
   border-radius: 12px;
   cursor: pointer;
 }
+
+.match-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.connect-btn {
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #ffc5ea;
+  cursor: pointer;
+}
+
+.connect-btn:hover {
+  background: rgba(0,0,0,0.04);
+}

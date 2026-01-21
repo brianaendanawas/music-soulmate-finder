@@ -109,7 +109,7 @@ def _artists_preview_from_profile(profile: Dict[str, Any], limit: int = 5) -> Li
 
 
 # -------------------------
-# NEW: profile public helpers
+# Profiles: public helpers
 # -------------------------
 def _extract_genres_preview(profile: Dict[str, Any], limit: int = 5) -> List[str]:
     """
@@ -144,12 +144,17 @@ def _extract_genres_preview(profile: Dict[str, Any], limit: int = 5) -> List[str
 
 def _public_profile_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     profile = item.get("profile") if isinstance(item.get("profile"), dict) else {}
+    connections = item.get("connections")
+    if not isinstance(connections, list):
+        connections = []
+
     return {
         "user_id": item.get("user_id"),
         "display_name": item.get("display_name") or item.get("user_id"),
         "bio": item.get("bio") or "",
         "top_artists_preview": item.get("top_artists_preview") or [],
         "top_genres_preview": _extract_genres_preview(profile, limit=5),
+        "connections": connections,
         "updated_at": item.get("updated_at") or "",
     }
 
@@ -177,6 +182,12 @@ def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
 
     now = datetime.now(timezone.utc).isoformat()
 
+    # IMPORTANT: preserve existing "connections" if present
+    existing = table.get_item(Key={"user_id": user_id}).get("Item") or {}
+    connections = existing.get("connections")
+    if not isinstance(connections, list):
+        connections = []
+
     table.put_item(
         Item={
             "user_id": user_id,
@@ -185,6 +196,7 @@ def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
             "display_name": display_name,
             "bio": bio,
             "top_artists_preview": top_preview,
+            "connections": connections,
         }
     )
 
@@ -196,6 +208,7 @@ def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
             "display_name": display_name,
             "bio": bio,
             "top_artists_preview": top_preview,
+            "connections": connections,
         },
     )
 
@@ -209,7 +222,6 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     limit = _safe_int(qs.get("limit") if isinstance(qs, dict) else None, 10)
     limit = max(1, min(limit, 25))
 
-    # LOG LINE #1
     print(f"Computing matches for user_id={user_id}, limit={limit}")
 
     me = table.get_item(Key={"user_id": user_id}).get("Item")
@@ -219,7 +231,6 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     me_profile = me.get("profile", {})
     others = _scan_all_profiles(exclude_user_id=user_id)
 
-    # LOG LINE #2
     print(f"Scanned {len(others)} other profiles from table={TABLE_NAME}")
 
     matches = []
@@ -249,9 +260,6 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-# -------------------------
-# NEW: GET /profiles/{user_id}
-# -------------------------
 def handle_get_profile(event: Dict[str, Any]) -> Dict[str, Any]:
     user_id = _get_path_param(event, "user_id")
     if not user_id:
@@ -263,6 +271,98 @@ def handle_get_profile(event: Dict[str, Any]) -> Dict[str, Any]:
         return _json_response(404, {"error": f"User not found: {user_id}"})
 
     return _json_response(200, _public_profile_from_item(item))
+
+
+# -------------------------
+# NEW: Connections
+# POST /connect
+# -------------------------
+def _get_body_user_ids(data: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Accept flexible payload keys:
+      - from_user_id / to_user_id
+      - user_id / target_user_id
+    """
+    from_id = data.get("from_user_id") or data.get("user_id")
+    to_id = data.get("to_user_id") or data.get("target_user_id")
+    if isinstance(from_id, str):
+        from_id = from_id.strip()
+    else:
+        from_id = None
+    if isinstance(to_id, str):
+        to_id = to_id.strip()
+    else:
+        to_id = None
+    return from_id, to_id
+
+
+def handle_post_connect(event: Dict[str, Any]) -> Dict[str, Any]:
+    data = _read_json_body(event)
+    from_user_id, to_user_id = _get_body_user_ids(data)
+
+    if not from_user_id or not to_user_id:
+        return _json_response(
+            400,
+            {
+                "error": "Missing required fields",
+                "expected": {
+                    "from_user_id": "briana_test_003",
+                    "to_user_id": "briana_test_002",
+                },
+            },
+        )
+
+    if from_user_id == to_user_id:
+        return _json_response(400, {"error": "Cannot connect to yourself"})
+
+    # Ensure both users exist
+    from_item = table.get_item(Key={"user_id": from_user_id}).get("Item")
+    if not from_item:
+        return _json_response(404, {"error": f"from_user_id not found: {from_user_id}"})
+
+    to_item = table.get_item(Key={"user_id": to_user_id}).get("Item")
+    if not to_item:
+        return _json_response(404, {"error": f"to_user_id not found: {to_user_id}"})
+
+    # Read existing connections to avoid duplicates
+    existing = from_item.get("connections")
+    if not isinstance(existing, list):
+        existing = []
+
+    if to_user_id in existing:
+        return _json_response(
+            200,
+            {
+                "message": "Already connected",
+                "from_user_id": from_user_id,
+                "to_user_id": to_user_id,
+                "connections": existing,
+            },
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    new_connections = existing + [to_user_id]
+
+    # Update only the needed fields
+    table.update_item(
+        Key={"user_id": from_user_id},
+        UpdateExpression="SET connections = :c, updated_at = :u",
+        ExpressionAttributeValues={
+            ":c": new_connections,
+            ":u": now,
+        },
+    )
+
+    return _json_response(
+        200,
+        {
+            "message": "Connected",
+            "from_user_id": from_user_id,
+            "to_user_id": to_user_id,
+            "connections": new_connections,
+            "updated_at": now,
+        },
+    )
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -279,10 +379,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             event["pathParameters"] = {"user_id": path.split("/matches/", 1)[-1]}
         return handle_get_matches(event)
 
-    # NEW ROUTE: GET /profiles/{user_id}
     if method == "GET" and path.startswith("/profiles/"):
         if not (event.get("pathParameters") or {}).get("user_id"):
             event["pathParameters"] = {"user_id": path.split("/profiles/", 1)[-1]}
         return handle_get_profile(event)
+
+    # NEW: POST /connect
+    if method == "POST" and (path.endswith("/connect") or path == "/connect"):
+        return handle_post_connect(event)
 
     return _json_response(404, {"error": "Route not found"})

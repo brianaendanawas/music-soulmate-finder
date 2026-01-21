@@ -1,6 +1,7 @@
 // Music Soulmate Finder — Minimal Demo Client (Polished)
 // Calls: GET /matches/{user_id}?limit=N
 // Plus:  GET /profiles/{user_id}
+// NEW (Day 4): POST /connect
 
 const API_BASE = "https://7rn3olmit4.execute-api.us-east-1.amazonaws.com";
 
@@ -19,7 +20,7 @@ const els = {
   statusText: document.getElementById("statusText"),
   statusMeta: document.getElementById("statusMeta"),
 
-  // NEW (Day 3):
+  // Day 3:
   matchList: document.getElementById("matchList"),
   profileMeta: document.getElementById("profileMeta"),
   profileOutput: document.getElementById("profileOutput"),
@@ -135,6 +136,64 @@ function normalizeMatchesResponse(data) {
   return Array.isArray(data) ? data : [];
 }
 
+// -------------------------
+// NEW (Day 4): Connect
+// -------------------------
+async function connectUser(fromUserId, toUserId) {
+  const url = `${API_BASE}/connect`;
+
+  // light feedback
+  if (els.profileMeta) {
+    els.profileMeta.textContent = `Connecting ${fromUserId} → ${toUserId}…`;
+  }
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        from_user_id: fromUserId,
+        to_user_id: toUserId,
+      }),
+    });
+
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+
+    if (!res.ok) {
+      showError(`Connect failed (HTTP ${res.status}).`);
+      if (els.profileMeta) els.profileMeta.textContent = "Connect failed";
+      if (els.profileOutput) {
+        els.profileOutput.textContent =
+          typeof data === "string" ? data : JSON.stringify(data, null, 2);
+      }
+      return;
+    }
+
+    console.log("Connect success:", data);
+    if (els.profileMeta) {
+      els.profileMeta.textContent = `Connected ✅ (${fromUserId} → ${toUserId})`;
+    }
+    if (els.profileOutput) {
+      els.profileOutput.textContent =
+        typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    }
+  } catch (err) {
+    showError(
+      "Network error connecting. If PowerShell works but browser fails, it’s usually CORS."
+    );
+    if (els.profileMeta) els.profileMeta.textContent = "Network error connecting";
+  }
+}
+
 function renderMatchList(matches) {
   if (!els.matchList) return;
 
@@ -150,20 +209,45 @@ function renderMatchList(matches) {
       const shared = escapeHtml(String(m.shared_artist_count ?? 0));
       const score = escapeHtml(String(m.score ?? 0));
 
+      // NEW: each row has a match button + a connect button
       return `
-        <button class="match-item" type="button" data-user-id="${uid}">
-          <div class="match-title">${name} <span class="muted">(@${uid})</span></div>
-          <div class="match-sub muted">${shared} shared artists • score ${score}</div>
-        </button>
+        <div class="match-row">
+          <button class="match-item" type="button" data-user-id="${uid}">
+            <div class="match-title">${name} <span class="muted">(@${uid})</span></div>
+            <div class="match-sub muted">${shared} shared artists • score ${score}</div>
+          </button>
+
+          <button class="connect-btn" type="button" data-target-user-id="${uid}">
+            Connect
+          </button>
+        </div>
       `;
     })
     .join("");
 
-  // click handlers
+  // click handlers for loading profile
   els.matchList.querySelectorAll(".match-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       const uid = btn.getAttribute("data-user-id");
       if (uid) fetchProfile(uid);
+    });
+  });
+
+  // NEW: click handlers for connect
+  els.matchList.querySelectorAll(".connect-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+
+      const targetId = btn.getAttribute("data-target-user-id");
+      const fromId = els.userId.value.trim();
+
+      if (!fromId) {
+        showError("Enter your user_id first (the left input), then click Connect.");
+        return;
+      }
+      if (!targetId) return;
+
+      await connectUser(fromId, targetId);
     });
   });
 }
@@ -230,7 +314,7 @@ async function fetchMatches() {
     setOutput("// Results will appear here");
     els.summary.classList.add("hidden");
 
-    // NEW: also clear match/profile panels
+    // also clear match/profile panels
     clearMatchUI();
     return;
   }
@@ -242,10 +326,13 @@ async function fetchMatches() {
   els.summary.classList.add("hidden");
   setOutput(`Requesting:\n${url}\n\n…`);
 
-  // NEW: reset panels for a new run
-  if (els.profileMeta) els.profileMeta.textContent = "Click a match to load their profile…";
-  if (els.profileOutput) els.profileOutput.textContent = "// Profile JSON will appear here";
-  if (els.matchList) els.matchList.innerHTML = `<div class="muted">Loading matches…</div>`;
+  // reset panels for a new run
+  if (els.profileMeta)
+    els.profileMeta.textContent = "Click a match to load their profile…";
+  if (els.profileOutput)
+    els.profileOutput.textContent = "// Profile JSON will appear here";
+  if (els.matchList)
+    els.matchList.innerHTML = `<div class="muted">Loading matches…</div>`;
 
   try {
     const res = await fetch(url, {
@@ -280,10 +367,10 @@ async function fetchMatches() {
         status: res.status,
         response: data,
         tip:
-          "If this works in PowerShell but fails in the browser, it's usually CORS. Enable CORS in API Gateway for GET/OPTIONS.",
+          "If this works in PowerShell but fails in the browser, it's usually CORS. Enable CORS in API Gateway for GET/POST/OPTIONS.",
       });
 
-      // NEW: clear list/panels on failure
+      // clear list/panels on failure
       clearMatchUI();
       return;
     }
@@ -293,7 +380,7 @@ async function fetchMatches() {
 
     setStatus("ok", "Success", url);
 
-    // NEW: render clickable matches list
+    // render clickable matches list (now includes Connect)
     renderMatchList(cleanedMatches);
 
     // Preserve your original response shape but replace matches list (if needed)
@@ -313,11 +400,10 @@ async function fetchMatches() {
     setOutput({
       error: "Network error",
       message: err?.message || String(err),
-      tip:
-        "If this works in PowerShell but not in the browser, enable CORS in API Gateway.",
+      tip: "If this works in PowerShell but not in the browser, enable CORS in API Gateway.",
     });
 
-    // NEW: clear on network failure
+    // clear on network failure
     clearMatchUI();
   } finally {
     els.btnFind.disabled = false;
@@ -332,7 +418,7 @@ function loadSample() {
   els.summary.classList.add("hidden");
   setOutput("// Click “Find Matches” to run the demo.");
 
-  // NEW: clear panels
+  // clear panels
   clearMatchUI();
 }
 
@@ -344,7 +430,7 @@ function clearAll() {
   els.summary.classList.add("hidden");
   setOutput("// Results will appear here");
 
-  // NEW: clear panels
+  // clear panels
   clearMatchUI();
 }
 
