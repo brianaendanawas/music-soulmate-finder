@@ -1,164 +1,139 @@
-# Music Soulmate Finder 💚 (AWS Serverless)
+# Music Soulmate Finder (MSF)
 
-**Status:** Prototype / active build — current milestone focuses on AWS serverless backend + matching logic. Planned improvements include Spotify OAuth and stronger auth.
+A lightweight, serverless “music soulmate” backend + demo UI.  
+Users create a music taste profile, fetch ranked matches, view public profiles, and **connect** with others (social foundation).
 
-A lightweight serverless backend that builds and stores music taste profiles and returns **ranked “music soulmate” matches** using a simple, explainable scoring algorithm.
-
-> Portfolio project: API Gateway → AWS Lambda (Python) → DynamoDB
-
----
-
-## Why this exists (Problem → Solution)
-
-**Problem:** Music-based matching systems often become opaque “black boxes” or require full applications with authentication, large datasets, and complex pipelines.
-
-**Solution:** This project keeps the scope intentionally small and clear:
-- Store each user’s music taste profile in DynamoDB
-- Compare users using a transparent scoring formula
-- Return ranked matches through a simple API endpoint
-
-The result is easy to demo, easy to explain, and easy to extend.
+This project intentionally avoids heavy auth / messaging / complex pipelines right now — it focuses on clear backend logic + real AWS infrastructure.
 
 ---
 
-## What it does
+## What it does today
 
-### ✅ Features
-- Build a **music taste profile** (artists, genres, tracks)
-- Persist profiles in DynamoDB using `user_id`
-- Compute **ranked matches** between users
-- Return shared artists / genres / tracks with scores
-- Minimal demo client (plain HTML + JS) for browser proof
+### Core API (AWS)
+- **POST `/taste-profile`**  
+  Save a user’s taste profile into DynamoDB (plus display name + bio).
+- **GET `/matches/{user_id}?limit=N`**  
+  Scan other profiles and compute match results (score + shared artists/genres/tracks).
+- **GET `/profiles/{user_id}`**  
+  View a user’s public profile JSON.
+- **POST `/connect`** ✅ (Week 5 Day 4)  
+  “User A connects to User B” — stored on User A’s item as a `connections` list.
 
----
-
-## Tech Stack (AWS-focused)
-
-- **API Gateway (HTTP API)** — public endpoints
-- **AWS Lambda (Python)** — profile storage & matching logic
-- **Amazon DynamoDB** — persistent profile storage (on-demand)
-- **CloudWatch Logs** — debugging and execution proof
-- *(Optional)* demo client: plain HTML/CSS/JS
+### Demo UI (simple)
+- Enter a `user_id` → fetch matches list
+- Click a match → view profile JSON
+- Click **Connect** → sends POST `/connect` and shows response JSON
 
 ---
 
-## Architecture
-```md
-Browser Demo (optional)
-|
-v
-API Gateway (HTTP API)
-|
-v
-AWS Lambda (Python)
-- build/store profile
-- compute matches
-  |
-  v
-  DynamoDB (Profiles Table)
-```
+## Why Spotify OAuth is paused (for now)
 
-## API Endpoints
+Week 1 used real Spotify OAuth to build profiles from a real account — it was cool, but it also introduced:
+- auth complexity
+- token refresh + storage
+- more moving parts than needed for the current goal
 
-### `GET /matches/{user_id}?limit=10`
+**Current goal:** build a clean “social backend foundation” first (profiles, matches, connections).  
+Spotify OAuth can come back later as a stretch feature once the core app behavior is strong.
 
-Returns a ranked list of the most similar users.
+Planned return:
+- add short/medium/long-term toggle for Spotify top artists/tracks
+- allow users to hide artists/songs (front-end localStorage first, optional DynamoDB later)
 
-**Example response**
+---
+
+## Architecture (current)
+
+**Backend**
+- API Gateway (HTTP API)
+- AWS Lambda (Python)
+- DynamoDB table: `music-soulmate-profiles`
+
+**Data model (single-table style)**
+Each user is stored as one DynamoDB item:
+- `user_id` (partition key)
+- `profile` (taste profile map)
+- `display_name`, `bio`
+- `top_artists_preview` (small list for UI)
+- `connections` (list of user_ids)
+- `updated_at`
+
+---
+
+## Social roadmap (where this is going)
+
+This project is evolving from “matching demo” → “early social app foundation”.
+
+Next steps (in small, realistic increments):
+1. **Fix match scoring bug** (currently scores display as 0)  
+2. Connection UI improvements:
+   - show “Connected” state per match
+   - prevent duplicate connects in the UI
+3. “Connections view” endpoint:
+   - GET `/connections/{user_id}` → list connected users (public profile summaries)
+4. Later (optional):
+   - messaging (very minimal)
+   - auth (Cognito) if needed
+   - Spotify OAuth re-integration
+
+---
+
+## Known issues
+
+- **Match score is currently always 0** in the demo output.  
+  This is tracked as a fix task (scoring logic debugging) and will be addressed in an upcoming session.
+
+---
+
+## Screenshots (proof it works)
+
+See: `docs/week5/screenshots/`
+
+Recommended captures:
+- Matches list + profile view
+- Connect action + JSON response
+- DynamoDB item showing `connections`
+
+---
+
+## Repo structure (quick map)
+
+- `lambda/` — AWS Lambda backend (handler, matching, helpers)
+- `demo/` — simple HTML/JS demo client
+- `docs/` — weekly documentation, screenshots, and notes
+
+---
+
+## Local demo (UI)
+
+Open:
+- `demo/index.html`
+
+Update `demo/app.js` if you change the API base URL.
+
+---
+
+## API examples
+
+### POST /connect
 ```json
 {
-  "for_user_id": "briana_test_002",
-  "limit": 10,
-  "matches": [
-    {
-      "user_id": "spotify:user:abc",
-      "score": 12,
-      "shared_artists": ["NCT 127"],
-      "shared_genres": ["k-pop"],
-      "shared_tracks": ["Sticker"]
-    }
-  ]
+  "from_user_id": "briana_test_003",
+  "to_user_id": "briana_test_002"
 }
-```
-
-## How matching works (Simple + explainable)
-
-Each pair of users receives a score:
-```md
-score =
-  (shared_artists * 3)
-+ (shared_genres  * 2)
-+ (shared_tracks  * 1)
-```
-
-Steps:
-
-1. Fetch the current user’s profile
-2. Scan other profiles in DynamoDB
-3. Compute score + shared elements
-4. Sort descending
-5. Return top N matches
-
-Why these weights?
-- Artists → strongest signal
-- Genres → broader signal
-- Tracks → can be one-off listens
-
-## DynamoDB Data Model
-- Partition key: user_id (string)
-- Attributes: taste profile data
-
-Example:
-```json
 {
-  "user_id": "briana_test_002",
-  "taste_profile": {
-    "top_artists": ["..."],
-    "top_genres": ["..."],
-    "top_tracks": ["..."]
-  }
+  "message": "Connected",
+  "from_user_id": "briana_test_003",
+  "to_user_id": "briana_test_002",
+  "connections": ["briana_test_002"],
+  "updated_at": "..."
 }
 ```
-## Proof / Screenshots
-### DynamoDB profile stored
-![DynamoDB profile stored](docs/week3/screenshots/week3-03-dynamodb-profiles.png)
-
-### Match endpoint response
-![Match endpoint response](docs/week3/screenshots/week3-07-matches-response.png)
-
-### API Gateway routes
-![API Gateway routes](docs/week4/screenshots/week4-02-api-gateway-routes.png)
-
-### Demo client success
-![Demo client success](docs/week4/screenshots/week4-02-demo-success.png)
-
-
-## Running the demo
-
-The demo is a plain HTML/JS page that calls the API.
-
-1. Set your API base URL in:
-```bash
-demo/app.js
-```
-
-2. Run a local static server:
-```bash
-cd demo
-python3 -m http.server 5500
-```
-
-3. Open:
-```bash
-http://localhost:5500
-```
-
-## Future Improvements
-- Spotify OAuth (real user identity)
-- Authentication / rate limiting
-- Improved scoring (normalization, sparse profiles)
-- Avoid full table scans (indexes or precomputed matches)
-- User preferences (hide artists/tracks, time range toggle)
 
 ## Notes
-This project is intentionally small and demo-friendly, but structured like a real backend system: clean APIs, persistent storage, explainable logic, and proof screenshots.
+This project is built to show:
+- serverless API design (Lambda + API Gateway)
+- structured data modeling in DynamoDB
+- debugging with CloudWatch logs + IAM permissions
+- incremental delivery (features added week-by-week)
+If you want to see the evolution, check docs/week2/, docs/week3/, docs/week4/, docs/week5/.
