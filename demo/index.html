@@ -10,33 +10,45 @@
   <body>
     <main class="container">
       <header class="header">
-        <h1>Music Soulmate Finder 💚</h1>
-        <p class="subtitle">
-          Minimal demo client that calls the AWS API and displays ranked matches.
-        </p>
+        <div>
+          <h1>Music Soulmate Finder <span class="heart">💚</span></h1>
+          <p class="subtitle">
+            Week 5 demo — matches, profiles, connections (serverless)
+          </p>
+        </div>
+        <div class="pill">Demo UI</div>
       </header>
 
+      <!-- Controls -->
       <section class="card">
         <form id="form" class="form">
-          <div class="row">
-            <label for="userId">User ID</label>
-            <input
-              id="userId"
-              type="text"
-              placeholder="e.g., briana_test_002"
-              autocomplete="off"
-            />
-          </div>
+          <div class="grid">
+            <div class="field">
+              <label for="userId">User ID</label>
+              <input
+                id="userId"
+                type="text"
+                placeholder="e.g., briana_test_002"
+                autocomplete="off"
+              />
+            </div>
 
-          <div class="row">
-            <label for="limit">Limit</label>
-            <input id="limit" type="number" min="1" max="20" value="10" />
-          </div>
+            <div class="field">
+              <label for="limit">Limit</label>
+              <input id="limit" type="number" min="1" max="50" value="10" />
+            </div>
 
-          <div class="actions">
-            <button id="btnFind" type="submit">Find Matches</button>
-            <button id="btnSample" type="button" class="secondary">Use Sample</button>
-            <button id="btnClear" type="button" class="secondary">Clear</button>
+            <div class="actions">
+              <button id="btnFind" class="btn primary" type="submit">
+                Find Matches
+              </button>
+              <button id="btnSample" class="btn ghost" type="button">
+                Use Sample
+              </button>
+              <button id="btnClear" class="btn ghost" type="button">
+                Clear
+              </button>
+            </div>
           </div>
 
           <p class="hint">
@@ -46,49 +58,64 @@
         </form>
       </section>
 
+      <!-- Results -->
       <section class="card">
-        <div class="status">
-          <span id="statusDot" class="dot idle"></span>
-          <span id="statusText">Idle</span>
-          <span id="statusMeta" class="meta"></span>
+        <div class="topbar">
+          <div class="status">
+            <span id="statusDot" class="dot idle"></span>
+            <span id="statusText">Idle</span>
+            <span id="statusMeta" class="meta"></span>
+          </div>
+
+          <button id="btnCopy" type="button" class="btn ghost small" disabled>
+            Copy JSON
+          </button>
         </div>
 
         <div id="errorBox" class="alert hidden"></div>
 
-        <div class="resultsHeader">
-          <h2>Results</h2>
-          <div class="resultsActions">
-            <button id="btnCopy" type="button" class="secondary small" disabled>
-              Copy JSON
-            </button>
-          </div>
-        </div>
-
         <div id="summary" class="summary hidden"></div>
 
-        <!-- NEW: clickable matches + selected profile panels -->
-        <div class="panel">
-          <h3>Matches</h3>
-          <div id="matchList" class="match-list">
-            <div class="muted">Run “Find Matches” to populate this list.</div>
+        <div class="twoCol">
+          <div class="panel">
+            <div class="panelHeader">
+              <h2>Matches</h2>
+              <div class="panelHint muted">Click a match to load their profile</div>
+            </div>
+
+            <div id="matchList" class="match-list">
+              <div class="emptyState">
+                <div class="emptyTitle">No matches loaded yet</div>
+                <div class="muted">Enter a user id and click “Find Matches”.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panelHeader">
+              <h2>Selected profile</h2>
+              <div id="profileMeta" class="muted">Click a match to load their profile…</div>
+            </div>
+
+            <pre id="profileOutput" class="code">// Profile JSON will appear here</pre>
           </div>
         </div>
 
-        <div class="panel">
-          <h3>Selected profile</h3>
-          <div id="profileMeta" class="muted">Click a match to load their profile…</div>
-          <pre id="profileOutput" class="output">// Profile JSON will appear here</pre>
+        <div class="panel wide">
+          <div class="panelHeader">
+            <h2>Raw response</h2>
+            <div class="muted">Useful for debugging</div>
+          </div>
+          <pre id="output" class="code">// Results will appear here</pre>
         </div>
 
-        <pre id="output" class="output">// Results will appear here</pre>
-
-        <p class="footnote">
+        <p class="footnote muted">
           If PowerShell works but the browser fails, it’s usually CORS.
         </p>
       </section>
 
-      <footer class="footer">
-        <p>Portfolio demo client (no frameworks).</p>
+      <footer class="footer muted">
+        Portfolio demo client (no frameworks).
       </footer>
     </main>
 

@@ -1,7 +1,7 @@
 // Music Soulmate Finder — Minimal Demo Client (Polished)
 // Calls: GET /matches/{user_id}?limit=N
 // Plus:  GET /profiles/{user_id}
-// NEW (Day 4): POST /connect
+// Plus:  POST /connect
 
 const API_BASE = "https://7rn3olmit4.execute-api.us-east-1.amazonaws.com";
 
@@ -27,6 +27,11 @@ const els = {
 };
 
 let lastJsonText = "";
+
+// Day 6: local UI state so Connect becomes "Connected ✓" without duplicates
+let connectedSet = new Set();
+let currentMatches = [];
+let currentUserId = "";
 
 function setStatus(state, text, meta = "") {
   els.statusDot.className = `dot ${state}`;
@@ -90,11 +95,10 @@ function showSummary(matches, forUserId, limit) {
   }
 
   const top = matches[0];
-
   const topLine = top
     ? `Top match: ${top.display_name || top.user_id} (@${top.user_id}) — ${
         top.shared_artist_count ?? 0
-      } shared artists — score: ${top.score}`
+      } shared artists — score: ${top.score ?? 0}`
     : "No matches returned.";
 
   els.summary.innerHTML = `
@@ -129,7 +133,6 @@ function escapeHtml(str) {
 
 function normalizeMatchesResponse(data) {
   // Your API returns: { for_user_id, limit, matches: [...] }
-  // Support both shapes safely.
   if (data && typeof data === "object" && Array.isArray(data.matches)) {
     return data.matches;
   }
@@ -137,10 +140,20 @@ function normalizeMatchesResponse(data) {
 }
 
 // -------------------------
-// NEW (Day 4): Connect
+// Connect
 // -------------------------
 async function connectUser(fromUserId, toUserId) {
   const url = `${API_BASE}/connect`;
+
+  // Prevent self-connect + duplicates (UI + logic)
+  if (fromUserId === toUserId) {
+    showError("You can’t connect to yourself 🙂");
+    return false;
+  }
+  if (connectedSet.has(toUserId)) {
+    setStatus("ok", "Already connected ✓");
+    return true;
+  }
 
   // light feedback
   if (els.profileMeta) {
@@ -175,7 +188,7 @@ async function connectUser(fromUserId, toUserId) {
         els.profileOutput.textContent =
           typeof data === "string" ? data : JSON.stringify(data, null, 2);
       }
-      return;
+      return false;
     }
 
     console.log("Connect success:", data);
@@ -186,16 +199,27 @@ async function connectUser(fromUserId, toUserId) {
       els.profileOutput.textContent =
         typeof data === "string" ? data : JSON.stringify(data, null, 2);
     }
+
+    // Day 6: update local UI state and re-render list to show "Connected ✓"
+    connectedSet.add(toUserId);
+    renderMatchList(currentMatches);
+
+    setStatus("ok", "Connected ✓", `${fromUserId} → ${toUserId}`);
+    return true;
   } catch (err) {
     showError(
       "Network error connecting. If PowerShell works but browser fails, it’s usually CORS."
     );
     if (els.profileMeta) els.profileMeta.textContent = "Network error connecting";
+    return false;
   }
 }
 
 function renderMatchList(matches) {
   if (!els.matchList) return;
+
+  currentMatches = Array.isArray(matches) ? matches : [];
+  currentUserId = els.userId.value.trim();
 
   if (!Array.isArray(matches) || matches.length === 0) {
     els.matchList.innerHTML = `<div class="muted">No matches to display.</div>`;
@@ -209,7 +233,12 @@ function renderMatchList(matches) {
       const shared = escapeHtml(String(m.shared_artist_count ?? 0));
       const score = escapeHtml(String(m.score ?? 0));
 
-      // NEW: each row has a match button + a connect button
+      const isSelf = currentUserId && uid === escapeHtml(currentUserId);
+      const isConnected = connectedSet.has(m.user_id);
+
+      const connectLabel = isConnected ? "Connected ✓" : "Connect";
+      const disabledAttr = isSelf || isConnected ? "disabled" : "";
+
       return `
         <div class="match-row">
           <button class="match-item" type="button" data-user-id="${uid}">
@@ -217,8 +246,8 @@ function renderMatchList(matches) {
             <div class="match-sub muted">${shared} shared artists • score ${score}</div>
           </button>
 
-          <button class="connect-btn" type="button" data-target-user-id="${uid}">
-            Connect
+          <button class="connect-btn" type="button" data-target-user-id="${uid}" ${disabledAttr}>
+            ${connectLabel}
           </button>
         </div>
       `;
@@ -233,7 +262,7 @@ function renderMatchList(matches) {
     });
   });
 
-  // NEW: click handlers for connect
+  // click handlers for connect
   els.matchList.querySelectorAll(".connect-btn").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -291,6 +320,7 @@ async function fetchProfile(userId) {
     }
 
     setSelectedProfile(`Loaded profile for ${userId}`, data);
+    setStatus("ok", "Profile loaded", userId);
   } catch (err) {
     setSelectedProfile(
       "Network error loading profile",
@@ -308,13 +338,16 @@ async function fetchMatches() {
   const userId = els.userId.value.trim();
   const limit = Number(els.limit.value || 10);
 
+  // Day 6: reset local connected state per “session run”
+  connectedSet = new Set();
+  currentMatches = [];
+  currentUserId = userId;
+
   if (!userId) {
     setStatus("error", "Missing user_id");
     showError("Please enter a user_id (example: briana_test_002).");
     setOutput("// Results will appear here");
     els.summary.classList.add("hidden");
-
-    // also clear match/profile panels
     clearMatchUI();
     return;
   }
@@ -370,20 +403,17 @@ async function fetchMatches() {
           "If this works in PowerShell but fails in the browser, it's usually CORS. Enable CORS in API Gateway for GET/POST/OPTIONS.",
       });
 
-      // clear list/panels on failure
       clearMatchUI();
       return;
     }
 
-    // Create a cleaned view for summary
     const cleanedMatches = normalizeMatchesResponse(data);
 
     setStatus("ok", "Success", url);
 
-    // render clickable matches list (now includes Connect)
+    // render clickable matches list (includes Connect + Connected state)
     renderMatchList(cleanedMatches);
 
-    // Preserve your original response shape but replace matches list (if needed)
     if (data && typeof data === "object" && "matches" in data) {
       const patched = { ...data, matches: cleanedMatches };
       showSummary(cleanedMatches, userId, limit);
@@ -403,7 +433,6 @@ async function fetchMatches() {
       tip: "If this works in PowerShell but not in the browser, enable CORS in API Gateway.",
     });
 
-    // clear on network failure
     clearMatchUI();
   } finally {
     els.btnFind.disabled = false;
@@ -417,8 +446,6 @@ function loadSample() {
   setStatus("idle", "Sample loaded");
   els.summary.classList.add("hidden");
   setOutput("// Click “Find Matches” to run the demo.");
-
-  // clear panels
   clearMatchUI();
 }
 
@@ -430,7 +457,11 @@ function clearAll() {
   els.summary.classList.add("hidden");
   setOutput("// Results will appear here");
 
-  // clear panels
+  // Day 6: clear local state too
+  connectedSet = new Set();
+  currentMatches = [];
+  currentUserId = "";
+
   clearMatchUI();
 }
 
