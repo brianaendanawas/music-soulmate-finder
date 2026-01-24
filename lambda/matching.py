@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Set
+from typing import Any, Dict, Iterable, List, Set
 
 
 def _norm(s: str) -> str:
@@ -8,14 +8,58 @@ def _norm(s: str) -> str:
     return " ".join(s.strip().lower().split())
 
 
+def _strings_from_list(val: Any) -> List[str]:
+    """
+    Accepts:
+      - ["a", "b"]
+      - [{"name": "a"}, {"name": "b"}]
+      - None
+    Returns: list[str]
+    """
+    if not isinstance(val, list) or not val:
+        return []
+    out: List[str] = []
+    for x in val:
+        if isinstance(x, str) and x.strip():
+            out.append(x.strip())
+        elif isinstance(x, dict):
+            name = x.get("name")
+            if isinstance(name, str) and name.strip():
+                out.append(name.strip())
+    return out
+
+
+def _get_nested(profile: Dict[str, Any], *keys: str) -> Any:
+    cur: Any = profile
+    for k in keys:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(k)
+    return cur
+
+
 def _extract_artists(profile: Dict[str, Any]) -> Set[str]:
     """
-    Your Day 3 profile stores sample artists like:
-      profile["sample"]["top_artists"] = ["Artist 1", "Artist 2", ...]
+    Supports multiple shapes:
+      Day 3: profile["sample"]["top_artists"] = [...]
+      Older/other: profile["top_artists"] / profile["favorite_artists"] / profile["artists"] = [...]
+      UI preview: profile["top_artists_preview"] = [...]
     """
-    artists = profile.get("sample", {}).get("top_artists", []) or []
+    candidates: List[str] = []
+
+    # Day 3
+    candidates += _strings_from_list(_get_nested(profile, "sample", "top_artists"))
+
+    # Other common fields
+    candidates += _strings_from_list(profile.get("favorite_artists"))
+    candidates += _strings_from_list(profile.get("top_artists"))
+    candidates += _strings_from_list(profile.get("artists"))
+
+    # Preview field (stored at the DynamoDB item level sometimes, but safe here too)
+    candidates += _strings_from_list(profile.get("top_artists_preview"))
+
     out: Set[str] = set()
-    for a in artists:
+    for a in candidates:
         if isinstance(a, str) and a.strip():
             out.add(_norm(a))
     return out
@@ -23,12 +67,17 @@ def _extract_artists(profile: Dict[str, Any]) -> Set[str]:
 
 def _extract_tracks(profile: Dict[str, Any]) -> Set[str]:
     """
-    Your Day 3 profile stores sample tracks like:
-      profile["sample"]["top_tracks"] = ["Song A – Artist 1", ...]
+    Supports:
+      Day 3: profile["sample"]["top_tracks"] = ["Song – Artist", ...]
+      Other: profile["top_tracks"] / profile["tracks"] = [...]
     """
-    tracks = profile.get("sample", {}).get("top_tracks", []) or []
+    candidates: List[str] = []
+    candidates += _strings_from_list(_get_nested(profile, "sample", "top_tracks"))
+    candidates += _strings_from_list(profile.get("top_tracks"))
+    candidates += _strings_from_list(profile.get("tracks"))
+
     out: Set[str] = set()
-    for t in tracks:
+    for t in candidates:
         if isinstance(t, str) and t.strip():
             out.add(_norm(t))
     return out
@@ -36,19 +85,44 @@ def _extract_tracks(profile: Dict[str, Any]) -> Set[str]:
 
 def _extract_genres(profile: Dict[str, Any]) -> Set[str]:
     """
-    Your Day 3 profile stores ranked genres like:
-      profile["top_genres"] = [{"genre": "pop", "count": 2}, ...]
+    Supports:
+      Day 3: profile["top_genres"] = [{"genre": "pop", "count": 2}, ...]
+      Older: profile["top_genres"] = ["pop", "k-pop"]
+      Other: profile["genres"] = ["pop", ...]
+      Preview: profile["top_genres_preview"] = ["pop", ...]
+      Weights: profile["genre_weights"] = {"pop": 3, ...}
     """
-    top_genres = profile.get("top_genres", []) or []
     out: Set[str] = set()
 
-    for g in top_genres:
-        if isinstance(g, dict):
-            genre_name = g.get("genre")
-            if isinstance(genre_name, str) and genre_name.strip():
-                out.add(_norm(genre_name))
-        elif isinstance(g, str) and g.strip():
-            out.add(_norm(g))
+    # Day 3 / Older: top_genres list
+    top_genres = profile.get("top_genres") or []
+    if isinstance(top_genres, list):
+        for g in top_genres:
+            if isinstance(g, dict):
+                name = g.get("genre")
+                if isinstance(name, str) and name.strip():
+                    out.add(_norm(name))
+            elif isinstance(g, str) and g.strip():
+                out.add(_norm(g))
+
+    # Other fields
+    genres = profile.get("genres") or []
+    if isinstance(genres, list):
+        for g in genres:
+            if isinstance(g, str) and g.strip():
+                out.add(_norm(g))
+
+    preview = profile.get("top_genres_preview") or []
+    if isinstance(preview, list):
+        for g in preview:
+            if isinstance(g, str) and g.strip():
+                out.add(_norm(g))
+
+    weights = profile.get("genre_weights")
+    if isinstance(weights, dict):
+        for k in weights.keys():
+            if isinstance(k, str) and k.strip():
+                out.add(_norm(k))
 
     return out
 
@@ -61,7 +135,8 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
         "shared_artists": [...],
         "shared_genres": [...],
         "shared_tracks": [...],
-        "counts": {"artists": int, "genres": int, "tracks": int}
+        "counts": {"artists": int, "genres": int, "tracks": int},
+        "weights": {"artist": 3, "genre": 2, "track": 1},
       }
     """
     a_artists = _extract_artists(profile_a)
@@ -77,10 +152,12 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
     shared_genres = sorted(a_genres & b_genres)
     shared_tracks = sorted(a_tracks & b_tracks)
 
+    # Same simple weighting as before (keep it explainable)
     score = (len(shared_artists) * 3) + (len(shared_genres) * 2) + (len(shared_tracks) * 1)
 
     return {
-        "match_score": score,
+        "debug_matching_version": "week5-day7-robust-v1",
+        "match_score": int(score),
         "shared_artists": shared_artists,
         "shared_genres": shared_genres,
         "shared_tracks": shared_tracks,

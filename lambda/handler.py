@@ -159,6 +159,28 @@ def _public_profile_from_item(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _profile_for_scoring(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Combine nested 'profile' (Day 3 taste profile) with item-level preview fields,
+    so matching.py can find artists/genres/tracks no matter where they're stored.
+    """
+    base = item.get("profile")
+    merged: Dict[str, Any] = base if isinstance(base, dict) else {}
+
+    # Copy so we don't mutate the original
+    out: Dict[str, Any] = dict(merged)
+
+    # Item-level previews (your UI uses these)
+    if isinstance(item.get("top_artists_preview"), list):
+        out["top_artists_preview"] = item.get("top_artists_preview") or []
+
+    # If you ever store genres preview at top-level, support it too
+    if isinstance(item.get("top_genres_preview"), list):
+        out["top_genres_preview"] = item.get("top_genres_preview") or []
+
+    return out
+
+
 def handle_post_taste_profile(event: Dict[str, Any]) -> Dict[str, Any]:
     data = _read_json_body(event)
 
@@ -229,13 +251,16 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
         return _json_response(404, {"error": f"No profile found for {user_id}"})
 
     me_profile = me.get("profile", {})
-    others = _scan_all_profiles(exclude_user_id=user_id)
+    me_for_scoring = _profile_for_scoring(me)
 
+    others = _scan_all_profiles(exclude_user_id=user_id)
     print(f"Scanned {len(others)} other profiles from table={TABLE_NAME}")
 
     matches = []
     for it in others:
-        scored = compute_match_score(me_profile, it.get("profile", {}))
+        other_for_scoring = _profile_for_scoring(it)
+
+        scored = compute_match_score(me_for_scoring, other_for_scoring)
         shared_artists = scored.get("shared_artists", []) or []
 
         matches.append(
@@ -247,8 +272,8 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
                 "score": scored.get("match_score", 0),
                 "shared_artist_count": len(shared_artists),
                 "shared_artists": shared_artists,
-                "shared_genres": scored.get("shared_genres", []),
-                "shared_tracks": scored.get("shared_tracks", []),
+                "shared_genres": scored.get("shared_genres", []) or [],
+                "shared_tracks": scored.get("shared_tracks", []) or [],
             }
         )
 
@@ -256,7 +281,17 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
 
     return _json_response(
         200,
-        {"for_user_id": user_id, "limit": limit, "matches": matches[:limit]},
+        {
+            "debug": {
+                "matches_handler_version": "week5-day7-verify-v1",
+                "table": TABLE_NAME,
+                "me_profile_keys": sorted(list(me_profile.keys())) if isinstance(me_profile, dict) else [],
+                "me_top_artists_preview_count": len(me.get("top_artists_preview") or []),
+            },
+            "for_user_id": user_id,
+            "limit": limit,
+            "matches": matches[:limit],
+        },
     )
 
 
