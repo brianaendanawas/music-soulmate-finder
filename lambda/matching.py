@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Set
+from typing import Any, Dict, List, Set
 
 
 def _norm(s: str) -> str:
@@ -127,11 +127,22 @@ def _extract_genres(profile: Dict[str, Any]) -> Set[str]:
     return out
 
 
+def _cap_0_100(x: float) -> int:
+    """Cap a score to [0, 100] and return as int."""
+    if x < 0:
+        return 0
+    if x > 100:
+        return 100
+    return int(x)
+
+
 def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) -> Dict[str, Any]:
     """
     Returns:
       {
-        "match_score": int,
+        "raw_score": int,
+        "match_score": int,        # capped 0-100
+        "match_percent": int,      # 0-100 int (same scale as match_score)
         "shared_artists": [...],
         "shared_genres": [...],
         "shared_tracks": [...],
@@ -153,11 +164,19 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
     shared_tracks = sorted(a_tracks & b_tracks)
 
     # Same simple weighting as before (keep it explainable)
-    score = (len(shared_artists) * 3) + (len(shared_genres) * 2) + (len(shared_tracks) * 1)
+    raw_score = (len(shared_artists) * 3) + (len(shared_genres) * 2) + (len(shared_tracks) * 1)
+
+    # Day 1 change: cap to 0-100 for a stable UI-friendly score
+    match_score = _cap_0_100(float(raw_score))
+
+    # Keep percent as a clean 0-100 integer (same as capped score)
+    match_percent = int(round(match_score))
 
     return {
-        "debug_matching_version": "week5-day7-robust-v1",
-        "match_score": int(score),
+        "debug_matching_version": "week6-day1-scorecap-v1",
+        "raw_score": int(raw_score),
+        "match_score": int(match_score),
+        "match_percent": int(match_percent),
         "shared_artists": shared_artists,
         "shared_genres": shared_genres,
         "shared_tracks": shared_tracks,

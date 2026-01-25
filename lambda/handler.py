@@ -269,7 +269,13 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
                 "display_name": it.get("display_name") or it["user_id"],
                 "bio": it.get("bio") or "",
                 "top_artists_preview": it.get("top_artists_preview") or [],
+                # Keep existing "score" for UI compatibility (now capped 0-100)
                 "score": scored.get("match_score", 0),
+
+                # NEW Day 1 fields
+                "raw_score": scored.get("raw_score", scored.get("match_score", 0)),
+                "match_percent": scored.get("match_percent", scored.get("match_score", 0)),
+
                 "shared_artist_count": len(shared_artists),
                 "shared_artists": shared_artists,
                 "shared_genres": scored.get("shared_genres", []) or [],
