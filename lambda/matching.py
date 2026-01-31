@@ -1,11 +1,51 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Set
 
 
 def _norm(s: str) -> str:
-    """Normalize strings so matching is consistent."""
-    return " ".join(s.strip().lower().split())
+    """
+    Normalize strings so matching is consistent.
+
+    Day 2 upgrade:
+      - Normalize Unicode dashes (–, —, etc) -> "-"
+      - Normalize feat variants: feat., featuring, ft., ft -> "feat"
+      - Normalize spaces (including around hyphens): "a  -  b" -> "a - b"
+      - Lowercase + trim
+    """
+    if not isinstance(s, str):
+        return ""
+
+    s = s.strip()
+
+    # A) Normalize dash-like characters to a simple hyphen "-"
+    dash_chars = [
+        "\u2010",  # hyphen
+        "\u2011",  # non-breaking hyphen
+        "\u2012",  # figure dash
+        "\u2013",  # en dash
+        "\u2014",  # em dash
+        "\u2212",  # minus sign
+    ]
+    for ch in dash_chars:
+        s = s.replace(ch, "-")
+
+    # Lowercase early so regex is simpler
+    s = s.lower()
+
+    # B) Normalize "feat" variants
+    # IMPORTANT: Handle trailing dot safely (feat. / ft.)
+    # We match the word boundary on the word, then optionally consume a dot.
+    s = re.sub(r"\b(featuring|feat|ft)\b\.?", "feat", s)
+
+    # C) Normalize spaces around hyphens (keeps "song - artist" stable)
+    s = re.sub(r"\s*-\s*", " - ", s)
+
+    # D) Collapse multiple spaces/tabs/newlines
+    s = " ".join(s.split())
+
+    return s
 
 
 def _strings_from_list(val: Any) -> List[str]:
@@ -163,17 +203,13 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
     shared_genres = sorted(a_genres & b_genres)
     shared_tracks = sorted(a_tracks & b_tracks)
 
-    # Same simple weighting as before (keep it explainable)
     raw_score = (len(shared_artists) * 3) + (len(shared_genres) * 2) + (len(shared_tracks) * 1)
 
-    # Day 1 change: cap to 0-100 for a stable UI-friendly score
     match_score = _cap_0_100(float(raw_score))
-
-    # Keep percent as a clean 0-100 integer (same as capped score)
     match_percent = int(round(match_score))
 
     return {
-        "debug_matching_version": "week6-day1-scorecap-v1",
+        "debug_matching_version": "week6-day2-normdash-feat-v2",
         "raw_score": int(raw_score),
         "match_score": int(match_score),
         "match_percent": int(match_percent),
