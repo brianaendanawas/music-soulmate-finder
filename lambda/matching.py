@@ -180,9 +180,10 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
     """
     Returns:
       {
-        "raw_score": int,
-        "match_score": int,        # capped 0-100
-        "match_percent": int,      # 0-100 int (same scale as match_score)
+        "raw_score": int,           # points (not percent)
+        "max_raw_score": int,       # best possible points given what each user has
+        "match_score": int,         # 0-100 (percent-style score)
+        "match_percent": int,       # 0-100 (same as match_score)
         "shared_artists": [...],
         "shared_genres": [...],
         "shared_tracks": [...],
@@ -190,6 +191,7 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
         "weights": {"artist": 3, "genre": 2, "track": 1},
       }
     """
+    # Extract normalized sets
     a_artists = _extract_artists(profile_a)
     b_artists = _extract_artists(profile_b)
 
@@ -199,18 +201,34 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
     a_tracks = _extract_tracks(profile_a)
     b_tracks = _extract_tracks(profile_b)
 
+    # Shared overlap
     shared_artists = sorted(a_artists & b_artists)
     shared_genres = sorted(a_genres & b_genres)
     shared_tracks = sorted(a_tracks & b_tracks)
 
+    # Points (raw)
     raw_score = (len(shared_artists) * 3) + (len(shared_genres) * 2) + (len(shared_tracks) * 1)
 
-    match_score = _cap_0_100(float(raw_score))
-    match_percent = int(round(match_score))
+    # NEW: compute a true percent based on "max possible overlap points"
+    # Use mins so we don't pretend they could share more than either user has available.
+    max_raw_score = (
+        (min(len(a_artists), len(b_artists)) * 3)
+        + (min(len(a_genres), len(b_genres)) * 2)
+        + (min(len(a_tracks), len(b_tracks)) * 1)
+    )
+
+    if max_raw_score <= 0:
+        match_percent = 0
+    else:
+        match_percent = _cap_0_100((float(raw_score) / float(max_raw_score)) * 100.0)
+
+    # Keep match_score aligned with the percent for UI simplicity
+    match_score = int(match_percent)
 
     return {
-        "debug_matching_version": "week6-day2-normdash-feat-v2",
+        "debug_matching_version": "week6-day3-real-percent-v1",
         "raw_score": int(raw_score),
+        "max_raw_score": int(max_raw_score),
         "match_score": int(match_score),
         "match_percent": int(match_percent),
         "shared_artists": shared_artists,

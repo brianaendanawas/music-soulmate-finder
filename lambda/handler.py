@@ -261,7 +261,9 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
         other_for_scoring = _profile_for_scoring(it)
 
         scored = compute_match_score(me_for_scoring, other_for_scoring)
+
         shared_artists = scored.get("shared_artists", []) or []
+        shared_genres = scored.get("shared_genres", []) or []
 
         matches.append(
             {
@@ -278,7 +280,11 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
 
                 "shared_artist_count": len(shared_artists),
                 "shared_artists": shared_artists,
-                "shared_genres": scored.get("shared_genres", []) or [],
+
+                # ✅ Day 3 addition (additive, safe)
+                "shared_genre_count": len(shared_genres),
+                "shared_genres": shared_genres,
+
                 "shared_tracks": scored.get("shared_tracks", []) or [],
             }
         )

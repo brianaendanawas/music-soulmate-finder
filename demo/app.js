@@ -95,10 +95,19 @@ function showSummary(matches, forUserId, limit) {
   }
 
   const top = matches[0];
+
+  const topArtistCount = top?.shared_artist_count ?? 0;
+  const topGenreCount = top?.shared_genre_count ?? 0;
+
+  const percent =
+    top && top.match_percent != null ? `${top.match_percent}%` : null;
+
+  const fallbackScore = top?.score ?? 0;
+
   const topLine = top
-    ? `Top match: ${top.display_name || top.user_id} (@${top.user_id}) — ${
-        top.shared_artist_count ?? 0
-      } shared artists — score: ${top.score ?? 0}`
+    ? `Top match: ${top.display_name || top.user_id} (@${top.user_id}) — ${topArtistCount} shared artists — ${topGenreCount} shared genres — Match ${
+        percent ?? `${fallbackScore}%`
+      }`
     : "No matches returned.";
 
   els.summary.innerHTML = `
@@ -230,8 +239,14 @@ function renderMatchList(matches) {
     .map((m) => {
       const name = escapeHtml(m.display_name || m.user_id);
       const uid = escapeHtml(m.user_id);
-      const shared = escapeHtml(String(m.shared_artist_count ?? 0));
-      const score = escapeHtml(String(m.score ?? 0));
+
+      const sharedArtists = escapeHtml(String(m.shared_artist_count ?? 0));
+      const sharedGenres = escapeHtml(String(m.shared_genre_count ?? 0));
+
+      const matchPercent =
+        m.match_percent != null ? escapeHtml(String(m.match_percent)) : null;
+
+      const fallbackScore = escapeHtml(String(m.score ?? 0));
 
       const isSelf = currentUserId && uid === escapeHtml(currentUserId);
       const isConnected = connectedSet.has(m.user_id);
@@ -239,11 +254,13 @@ function renderMatchList(matches) {
       const connectLabel = isConnected ? "Connected ✓" : "Connect";
       const disabledAttr = isSelf || isConnected ? "disabled" : "";
 
+      const matchLabel = matchPercent != null ? `Match ${matchPercent}%` : `Score ${fallbackScore}`;
+
       return `
         <div class="match-row">
           <button class="match-item" type="button" data-user-id="${uid}">
             <div class="match-title">${name} <span class="muted">(@${uid})</span></div>
-            <div class="match-sub muted">${shared} shared artists • score ${score}</div>
+            <div class="match-sub muted">${sharedArtists} shared artists • ${sharedGenres} shared genres • ${matchLabel}</div>
           </button>
 
           <button class="connect-btn" type="button" data-target-user-id="${uid}" ${disabledAttr}>
