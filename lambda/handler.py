@@ -281,11 +281,14 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
                 "shared_artist_count": len(shared_artists),
                 "shared_artists": shared_artists,
 
-                # ✅ Day 3 addition (additive, safe)
+                # ✅ Day 3 addition
                 "shared_genre_count": len(shared_genres),
                 "shared_genres": shared_genres,
 
                 "shared_tracks": scored.get("shared_tracks", []) or [],
+
+                # ✅ Week 6 Day 4: explain breakdown
+                "explain": scored.get("explain"),
             }
         )
 
@@ -295,7 +298,7 @@ def handle_get_matches(event: Dict[str, Any]) -> Dict[str, Any]:
         200,
         {
             "debug": {
-                "matches_handler_version": "week5-day7-verify-v1",
+                "matches_handler_version": "week6-day4-explain-v1",
                 "table": TABLE_NAME,
                 "me_profile_keys": sorted(list(me_profile.keys())) if isinstance(me_profile, dict) else [],
                 "me_top_artists_preview_count": len(me.get("top_artists_preview") or []),

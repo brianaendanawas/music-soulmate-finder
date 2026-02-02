@@ -189,6 +189,16 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
         "shared_tracks": [...],
         "counts": {"artists": int, "genres": int, "tracks": int},
         "weights": {"artist": 3, "genre": 2, "track": 1},
+
+        # Day 4:
+        "explain": {
+          "artist_points": int,
+          "genre_points": int,
+          "track_points": int,
+          "shared_artists_sample": [...],
+          "shared_genres_sample": [...],
+          "shared_tracks_sample": [...],
+        }
       }
     """
     # Extract normalized sets
@@ -225,8 +235,24 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
     # Keep match_score aligned with the percent for UI simplicity
     match_score = int(match_percent)
 
+    # -------------------------
+    # Day 4: explain breakdown
+    # -------------------------
+    artist_points = len(shared_artists) * 3
+    genre_points = len(shared_genres) * 2
+    track_points = len(shared_tracks) * 1
+
+    explain = {
+        "artist_points": int(artist_points),
+        "genre_points": int(genre_points),
+        "track_points": int(track_points),
+        "shared_artists_sample": shared_artists[:3],
+        "shared_genres_sample": shared_genres[:3],
+        "shared_tracks_sample": shared_tracks[:3],
+    }
+
     return {
-        "debug_matching_version": "week6-day3-real-percent-v1",
+        "debug_matching_version": "week6-day4-explain-v1",
         "raw_score": int(raw_score),
         "max_raw_score": int(max_raw_score),
         "match_score": int(match_score),
@@ -240,4 +266,5 @@ def compute_match_score(profile_a: Dict[str, Any], profile_b: Dict[str, Any]) ->
             "tracks": len(shared_tracks),
         },
         "weights": {"artist": 3, "genre": 2, "track": 1},
+        "explain": explain,
     }

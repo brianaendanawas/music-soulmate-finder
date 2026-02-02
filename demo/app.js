@@ -33,6 +33,9 @@ let connectedSet = new Set();
 let currentMatches = [];
 let currentUserId = "";
 
+// Day 4: keep "Why" text visible while profile loads
+let currentExplainMeta = "";
+
 function setStatus(state, text, meta = "") {
   els.statusDot.className = `dot ${state}`;
   els.statusText.textContent = text;
@@ -65,7 +68,11 @@ function setOutput(obj) {
 
 function setSelectedProfile(metaText, objOrText) {
   // metaText: small line above the profile JSON
-  if (els.profileMeta) els.profileMeta.textContent = metaText;
+  if (els.profileMeta) {
+    // Week 6 Day 4: allow line breaks in the "Why" text
+    els.profileMeta.style.whiteSpace = "pre-line";
+    els.profileMeta.textContent = metaText;
+  }
 
   if (!els.profileOutput) return;
 
@@ -99,8 +106,7 @@ function showSummary(matches, forUserId, limit) {
   const topArtistCount = top?.shared_artist_count ?? 0;
   const topGenreCount = top?.shared_genre_count ?? 0;
 
-  const percent =
-    top && top.match_percent != null ? `${top.match_percent}%` : null;
+  const percent = top && top.match_percent != null ? `${top.match_percent}%` : null;
 
   const fallbackScore = top?.score ?? 0;
 
@@ -146,6 +152,71 @@ function normalizeMatchesResponse(data) {
     return data.matches;
   }
   return Array.isArray(data) ? data : [];
+}
+
+// -------------------------
+// Day 4: Explain helpers
+// -------------------------
+function getMatchByUserId(userId) {
+  if (!Array.isArray(currentMatches)) return null;
+  return currentMatches.find((m) => m && m.user_id === userId) || null;
+}
+
+function formatExplainMeta(match) {
+  // Backward compatible: if no explain, show nothing.
+  if (!match || !match.explain) return "";
+
+  const explain = match.explain || {};
+
+  const aCount =
+    match.shared_artist_count != null
+      ? Number(match.shared_artist_count)
+      : Array.isArray(explain.shared_artists_sample)
+      ? explain.shared_artists_sample.length
+      : 0;
+
+  const gCount =
+    match.shared_genre_count != null
+      ? Number(match.shared_genre_count)
+      : Array.isArray(explain.shared_genres_sample)
+      ? explain.shared_genres_sample.length
+      : 0;
+
+  const tCount =
+    match.shared_track_count != null
+      ? Number(match.shared_track_count)
+      : Array.isArray(explain.shared_tracks_sample)
+      ? explain.shared_tracks_sample.length
+      : 0;
+
+  const artistsSample = Array.isArray(explain.shared_artists_sample)
+    ? explain.shared_artists_sample.slice(0, 3).join(", ")
+    : "";
+  const genresSample = Array.isArray(explain.shared_genres_sample)
+    ? explain.shared_genres_sample.slice(0, 3).join(", ")
+    : "";
+  const tracksSample = Array.isArray(explain.shared_tracks_sample)
+    ? explain.shared_tracks_sample.slice(0, 3).join(", ")
+    : "";
+
+  const whyParts = [];
+  whyParts.push(`+${aCount} artists${artistsSample ? ` (${artistsSample})` : ""}`);
+  whyParts.push(`+${gCount} genres${genresSample ? ` (${genresSample})` : ""}`);
+  whyParts.push(`+${tCount} tracks${tracksSample ? ` (${tracksSample})` : ""}`);
+
+  // Single-line "Why"
+  const whyLine = `Why: ${whyParts.join(" · ")}`;
+
+  // Optional second line "Shared sample"
+  const sampleBits = [];
+  if (artistsSample) sampleBits.push(artistsSample);
+  if (genresSample) sampleBits.push(genresSample);
+  if (tracksSample) sampleBits.push(tracksSample);
+
+  const sampleLine = sampleBits.length ? `Shared sample: ${sampleBits.join(" • ")}` : "";
+
+  // profileMeta uses textContent; newline is fine.
+  return sampleLine ? `${whyLine}\n${sampleLine}` : whyLine;
 }
 
 // -------------------------
@@ -254,7 +325,8 @@ function renderMatchList(matches) {
       const connectLabel = isConnected ? "Connected ✓" : "Connect";
       const disabledAttr = isSelf || isConnected ? "disabled" : "";
 
-      const matchLabel = matchPercent != null ? `Match ${matchPercent}%` : `Score ${fallbackScore}`;
+      const matchLabel =
+        matchPercent != null ? `Match ${matchPercent}%` : `Score ${fallbackScore}`;
 
       return `
         <div class="match-row">
@@ -271,11 +343,26 @@ function renderMatchList(matches) {
     })
     .join("");
 
-  // click handlers for loading profile
+  // click handlers for loading profile (+ Day 4 explain line)
   els.matchList.querySelectorAll(".match-item").forEach((btn) => {
     btn.addEventListener("click", () => {
       const uid = btn.getAttribute("data-user-id");
-      if (uid) fetchProfile(uid);
+      if (!uid) return;
+
+      const matchObj = getMatchByUserId(uid);
+      const explainText = formatExplainMeta(matchObj);
+
+      // Store so fetchProfile can keep it visible while loading
+      currentExplainMeta = explainText;
+
+      // Show immediately (even before profile fetch completes)
+      if (explainText) {
+        setSelectedProfile(explainText, "// Loading profile JSON…");
+      } else {
+        setSelectedProfile("Loading profile…", "// Loading profile JSON…");
+      }
+
+      fetchProfile(uid);
     });
   });
 
@@ -301,7 +388,8 @@ function renderMatchList(matches) {
 async function fetchProfile(userId) {
   const url = buildProfileUrl(userId);
 
-  setSelectedProfile(`Loading profile: ${url}`, `Requesting:\n${url}\n\n…`);
+  const metaPrefix = currentExplainMeta ? `${currentExplainMeta}\n` : "";
+  setSelectedProfile(`${metaPrefix}Loading profile: ${url}`, `Requesting:\n${url}\n\n…`);
 
   try {
     const res = await fetch(url, {
@@ -324,7 +412,7 @@ async function fetchProfile(userId) {
           : data?.message || data?.error || "Request failed";
 
       setSelectedProfile(
-        `Error (HTTP ${res.status}) loading profile`,
+        `${metaPrefix}Error (HTTP ${res.status}) loading profile`,
         typeof data === "string" ? data : data
       );
 
@@ -336,11 +424,11 @@ async function fetchProfile(userId) {
       return;
     }
 
-    setSelectedProfile(`Loaded profile for ${userId}`, data);
+    setSelectedProfile(`${metaPrefix}Loaded profile for ${userId}`, data);
     setStatus("ok", "Profile loaded", userId);
   } catch (err) {
     setSelectedProfile(
-      "Network error loading profile",
+      `${metaPrefix}Network error loading profile`,
       err?.message || String(err)
     );
     showError(
@@ -360,6 +448,9 @@ async function fetchMatches() {
   currentMatches = [];
   currentUserId = userId;
 
+  // Day 4: reset explain meta too
+  currentExplainMeta = "";
+
   if (!userId) {
     setStatus("error", "Missing user_id");
     showError("Please enter a user_id (example: briana_test_002).");
@@ -377,12 +468,9 @@ async function fetchMatches() {
   setOutput(`Requesting:\n${url}\n\n…`);
 
   // reset panels for a new run
-  if (els.profileMeta)
-    els.profileMeta.textContent = "Click a match to load their profile…";
-  if (els.profileOutput)
-    els.profileOutput.textContent = "// Profile JSON will appear here";
-  if (els.matchList)
-    els.matchList.innerHTML = `<div class="muted">Loading matches…</div>`;
+  if (els.profileMeta) els.profileMeta.textContent = "Click a match to load their profile…";
+  if (els.profileOutput) els.profileOutput.textContent = "// Profile JSON will appear here";
+  if (els.matchList) els.matchList.innerHTML = `<div class="muted">Loading matches…</div>`;
 
   try {
     const res = await fetch(url, {
@@ -478,6 +566,9 @@ function clearAll() {
   connectedSet = new Set();
   currentMatches = [];
   currentUserId = "";
+
+  // Day 4: clear explain meta too
+  currentExplainMeta = "";
 
   clearMatchUI();
 }
