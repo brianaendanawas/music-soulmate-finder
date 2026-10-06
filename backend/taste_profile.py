@@ -1,62 +1,62 @@
-from collections import Counter
-from typing import Dict, Any
+from importlib import import_module
+from typing import Any, Dict
+
+
+# Reuse the same pure profile builder that the AWS Lambda save-profile flow uses.
+# "lambda" is a Python keyword, so import_module lets us import that package path
+# without duplicating the builder logic in the Flask backend.
+_build_matching_profile = import_module("lambda.build_taste_profile").build_taste_profile
 
 
 def build_taste_profile(sp) -> Dict[str, Any]:
     """
-    Build a simple 'taste profile' from the user's top artists and tracks.
+    Build the canonical matching-compatible taste profile from real Spotify data.
 
-    This function is pure Python logic that can be reused later in:
-    - Flask (current project)
-    - AWS Lambda handler (future serverless version)
-
-    It expects an authenticated Spotify client 'sp'.
+    Spotify is responsible only for supplying the user's real listening data here.
+    The final profile shape is produced by the same pure builder used by AWS, so
+    local Spotify profiles and saved matching profiles stay compatible.
     """
+    user = sp.current_user()
     top_artists_data = sp.current_user_top_artists(limit=20)
     top_tracks_data = sp.current_user_top_tracks(limit=20)
 
-    # ---- Favorite genres ----
-    genre_counts = Counter()
-    for artist in top_artists_data["items"]:
+    top_artists = []
+    top_genres = []
+    top_tracks = []
+
+    for artist in top_artists_data.get("items", []):
+        name = artist.get("name")
+        if isinstance(name, str) and name.strip():
+            top_artists.append(name.strip())
+
         for genre in artist.get("genres") or []:
-            genre_counts[genre] += 1
+            if isinstance(genre, str) and genre.strip():
+                top_genres.append(genre.strip())
 
-    favorite_genres = [g for g, _ in genre_counts.most_common(5)]
+    for track in top_tracks_data.get("items", []):
+        name = track.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
 
-    # ---- Favorite artists ----
-    favorite_artists = [a.get("name") for a in top_artists_data["items"][:5]]
+        artists = track.get("artists") or []
+        main_artist = None
 
-    # ---- Sample tracks ----
-    sample_tracks = []
-    for t in top_tracks_data["items"][:5]:
-        artists = t.get("artists", [])
-        main_artist_name = artists[0]["name"] if artists else "Unknown artist"
-        sample_tracks.append(
-            {"name": t.get("name"), "artist": main_artist_name}
-        )
+        if artists and isinstance(artists[0], dict):
+            artist_name = artists[0].get("name")
 
-    # ---- Summary ----
-    summary_parts = []
+            if isinstance(artist_name, str) and artist_name.strip():
+                main_artist = artist_name.strip()
 
-    if favorite_genres:
-        summary_parts.append(
-            f"You mainly listen to genres like {', '.join(favorite_genres[:3])}."
-        )
+        if main_artist:
+            top_tracks.append(f"{name.strip()} – {main_artist}")
+        else:
+            top_tracks.append(name.strip())
 
-    if favorite_artists:
-        summary_parts.append(
-            f"Your top artists include {', '.join(favorite_artists[:3])}."
-        )
-
-    summary = (
-        " ".join(summary_parts)
-        if summary_parts
-        else "We couldn't build a taste profile yet – Spotify may need more listening data."
-    )
-
-    return {
-        "favorite_genres": favorite_genres,
-        "favorite_artists": favorite_artists,
-        "sample_tracks": sample_tracks,
-        "summary": summary,
+    raw_profile = {
+        "user_id": user.get("id") or "unknown-user",
+        "top_artists": top_artists,
+        "top_genres": top_genres,
+        "top_tracks": top_tracks,
     }
+
+    return _build_matching_profile(raw_profile)
