@@ -1,10 +1,17 @@
-from flask import Flask, jsonify, render_template
+import os
+
+import requests
+from dotenv import load_dotenv
+from flask import Flask, jsonify, render_template, request
+
+from .taste_profile import collect_spotify_profile_data
 
 from .spotify_client import create_spotify_client
 from .taste_profile import build_taste_profile
 
 
 def create_app():
+    load_dotenv()
     app = Flask(__name__)
 
     @app.get("/")
@@ -83,6 +90,38 @@ def create_app():
         sp = create_spotify_client()
         taste_profile = build_taste_profile(sp)
         return jsonify({"taste_profile": taste_profile})
+
+    @app.post("/sync-profile")
+    def sync_profile():
+        # This endpoint is for the local development dashboard only.
+        if request.remote_addr not in ("127.0.0.1", "::1"):
+            return jsonify({"error": "Local access only."}), 403
+
+        api_base_url = os.getenv("AWS_API_BASE_URL", "").strip().rstrip("/")
+        if not api_base_url or not api_base_url.startswith("https://"):
+            return jsonify({"error": "AWS_API_BASE_URL must be configured as an HTTPS URL in .env."}), 500
+
+        try:
+            sp = create_spotify_client()
+            payload = collect_spotify_profile_data(sp)
+            expected_keys = {"user_id", "top_artists", "top_genres", "top_tracks"}
+            if set(payload) != expected_keys or not isinstance(payload["user_id"], str) or not payload["user_id"].strip() or payload["user_id"] == "unknown-user" or any(not isinstance(payload[key], list) for key in ("top_artists", "top_genres", "top_tracks")):
+                return jsonify({"error": "Invalid Spotify profile payload. Nothing was sent."}), 400
+
+            response = requests.post(
+                f"{api_base_url}/taste-profile", json=payload, timeout=30
+            )
+            response.raise_for_status()
+            result = response.json()
+            if result.get("user_id") != payload["user_id"]:
+                return jsonify({"error": "AWS returned an unexpected user ID."}), 502
+            return jsonify({"message": "Profile saved to AWS", "user_id": payload["user_id"], "aws_status": response.status_code})
+        except requests.RequestException:
+            app.logger.exception("AWS profile sync request failed")
+            return jsonify({"error": "Could not save profile to AWS. Check the Flask terminal."}), 502
+        except Exception:
+            app.logger.exception("Spotify profile sync failed")
+            return jsonify({"error": "Profile sync failed. Check the Flask terminal."}), 500
 
     return app
 

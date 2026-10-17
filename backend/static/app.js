@@ -285,10 +285,34 @@ async function loadTasteProfile() {
 }
 
 // --------------------------------------------------
+// Save Spotify profile to AWS through local Flask
+// --------------------------------------------------
+async function syncSpotifyProfile() {
+  const button = document.getElementById("sync-profile-button");
+  button.disabled = true;
+  setText("sync-profile-status", "Syncing Spotify profile to AWS...");
+
+  try {
+    const response = await fetch(apiUrl("/sync-profile"), { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `Sync failed (HTTP ${response.status})`);
+    }
+    setText("sync-profile-status", `Saved ${data.user_id} to AWS (HTTP ${data.aws_status}).`);
+  } catch (err) {
+    console.error(err);
+    setText("sync-profile-status", err.message || "Profile sync failed.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// --------------------------------------------------
 // Load dashboard
 // --------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("sync-profile-button").addEventListener("click", syncSpotifyProfile);
   loadProfile();
   loadTopArtists();
   loadTopTracks();
