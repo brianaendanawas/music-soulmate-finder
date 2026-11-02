@@ -308,11 +308,50 @@ async function syncSpotifyProfile() {
 }
 
 // --------------------------------------------------
+// Find AWS matches for the authenticated Spotify user
+// --------------------------------------------------
+async function findMyMatches() {
+  const button = document.getElementById("find-matches-button");
+  const list = document.getElementById("my-matches-list");
+  button.disabled = true;
+  list.replaceChildren();
+  setText("my-matches-status", "Loading your music matches...");
+
+  try {
+    const data = await fetchJson("/my-matches");
+    const matches = data.matches || [];
+    if (!matches.length) {
+      setText("my-matches-status", "No matches found yet.");
+      return;
+    }
+
+    const ul = document.createElement("ul");
+    ul.className = "item-list";
+    for (const match of matches) {
+      const li = document.createElement("li");
+      li.className = "artist-item";
+      const name = match.display_name || match.user_id || "Unknown user";
+      const percent = match.match_percent;
+      li.textContent = `${name} — ${percent == null ? "N/A" : `${percent}%`}`;
+      ul.appendChild(li);
+    }
+    list.appendChild(ul);
+    setText("my-matches-status", `Found ${matches.length} music matches.`);
+  } catch (err) {
+    console.error(err);
+    setText("my-matches-status", err.message || "Could not load matches.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// --------------------------------------------------
 // Load dashboard
 // --------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("sync-profile-button").addEventListener("click", syncSpotifyProfile);
+  document.getElementById("find-matches-button").addEventListener("click", findMyMatches);
   loadProfile();
   loadTopArtists();
   loadTopTracks();

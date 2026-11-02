@@ -123,6 +123,49 @@ def create_app():
             app.logger.exception("Spotify profile sync failed")
             return jsonify({"error": "Profile sync failed. Check the Flask terminal."}), 500
 
+    @app.get("/my-matches")
+    def get_my_matches():
+        # Local development only; do not accept an arbitrary user ID from the browser.
+        if request.remote_addr not in ("127.0.0.1", "::1"):
+            return jsonify({"error": "Local access only."}), 403
+
+        api_base_url = os.getenv("AWS_API_BASE_URL", "").strip().rstrip("/")
+        if not api_base_url.startswith("https://"):
+            return jsonify({"error": "AWS_API_BASE_URL must be configured as an HTTPS URL in .env."}), 500
+
+        try:
+            sp = create_spotify_client()
+            user_id = (sp.current_user() or {}).get("id")
+            if not isinstance(user_id, str) or not user_id.strip():
+                return jsonify({"error": "Could not identify your Spotify account."}), 401
+
+            response = requests.get(
+                f"{api_base_url}/matches/{requests.utils.quote(user_id, safe='')}",
+                params={"limit": 10},
+                timeout=30,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if data.get("for_user_id") != user_id or not isinstance(data.get("matches"), list):
+                return jsonify({"error": "AWS returned an unexpected matches response."}), 502
+
+            matches = [
+                {
+                    "user_id": match.get("user_id"),
+                    "display_name": match.get("display_name"),
+                    "match_percent": match.get("match_percent"),
+                }
+                for match in data["matches"]
+                if isinstance(match, dict)
+            ]
+            return jsonify({"matches": matches})
+        except requests.RequestException:
+            app.logger.exception("AWS matches request failed")
+            return jsonify({"error": "Could not retrieve AWS matches. Check the Flask terminal."}), 502
+        except Exception:
+            app.logger.exception("Spotify matches lookup failed")
+            return jsonify({"error": "Could not load matches. Check the Flask terminal."}), 500
+
     return app
 
 
