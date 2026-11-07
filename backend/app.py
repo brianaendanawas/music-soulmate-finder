@@ -166,6 +166,44 @@ def create_app():
             app.logger.exception("Spotify matches lookup failed")
             return jsonify({"error": "Could not load matches. Check the Flask terminal."}), 500
 
+    @app.get("/match-profile/<user_id>")
+    def get_match_profile(user_id):
+        # Local development proxy for an existing AWS public profile.
+        if request.remote_addr not in ("127.0.0.1", "::1"):
+            return jsonify({"error": "Local access only."}), 403
+
+        api_base_url = os.getenv("AWS_API_BASE_URL", "").strip().rstrip("/")
+        if not api_base_url.startswith("https://"):
+            return jsonify({"error": "AWS_API_BASE_URL must be configured as an HTTPS URL in .env."}), 500
+
+        if not user_id.strip() or len(user_id) > 200:
+            return jsonify({"error": "Invalid user ID."}), 400
+
+        try:
+            response = requests.get(
+                f"{api_base_url}/profiles/{requests.utils.quote(user_id, safe='')}",
+                timeout=30,
+            )
+            if response.status_code == 404:
+                return jsonify({"error": "Music profile not found."}), 404
+            response.raise_for_status()
+            data = response.json()
+            if not isinstance(data, dict) or data.get("user_id") != user_id:
+                return jsonify({"error": "AWS returned an unexpected profile response."}), 502
+
+            # Allowlist public fields only; never forward the complete AWS record.
+            artists = data.get("top_artists_preview")
+            genres = data.get("top_genres_preview")
+            return jsonify({
+                "user_id": user_id,
+                "display_name": data.get("display_name") if isinstance(data.get("display_name"), str) else user_id,
+                "top_artists_preview": [x for x in artists if isinstance(x, str)][:5] if isinstance(artists, list) else [],
+                "top_genres_preview": [x for x in genres if isinstance(x, str)][:5] if isinstance(genres, list) else [],
+            })
+        except (requests.RequestException, ValueError):
+            app.logger.exception("AWS public profile request failed")
+            return jsonify({"error": "Could not retrieve this music profile. Check the Flask terminal."}), 502
+
     return app
 
 

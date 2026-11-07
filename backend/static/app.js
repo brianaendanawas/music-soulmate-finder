@@ -310,11 +310,56 @@ async function syncSpotifyProfile() {
 // --------------------------------------------------
 // Find AWS matches for the authenticated Spotify user
 // --------------------------------------------------
+let selectedMatchRequest = 0;
+
+function showSelectedProfile(profile, match) {
+  const panel = document.getElementById("selected-match-profile");
+  panel.replaceChildren();
+
+  function addField(label, value) {
+    const p = document.createElement("p");
+    const strong = document.createElement("strong");
+    strong.textContent = `${label}: `;
+    p.append(strong, document.createTextNode(value));
+    panel.appendChild(p);
+  }
+
+  addField("Name", profile.display_name || profile.user_id);
+  addField("User ID", profile.user_id);
+  const percent = match.match_percent;
+  addField("Compatibility", percent == null ? "N/A" : `${percent}%`);
+  addField("Favorite artists", profile.top_artists_preview?.length
+    ? profile.top_artists_preview.join(", ") : "No favorite artists available yet.");
+  addField("Favorite genres", profile.top_genres_preview?.length
+    ? profile.top_genres_preview.join(", ") : "No favorite genres available yet.");
+}
+
+async function selectMusicMatch(match) {
+  const requestNumber = ++selectedMatchRequest;
+  const panel = document.getElementById("selected-match-profile");
+  panel.replaceChildren();
+  setText("selected-match-status", "Loading selected music profile...");
+
+  try {
+    const profile = await fetchJson(`/match-profile/${encodeURIComponent(match.user_id)}`);
+    if (requestNumber !== selectedMatchRequest) return;
+    showSelectedProfile(profile, match);
+    setText("selected-match-status", "");
+  } catch (err) {
+    if (requestNumber !== selectedMatchRequest) return;
+    console.error(err);
+    setText("selected-match-status", "Could not load this music profile.");
+  }
+}
+
 async function findMyMatches() {
   const button = document.getElementById("find-matches-button");
   const list = document.getElementById("my-matches-list");
   button.disabled = true;
   list.replaceChildren();
+  ++selectedMatchRequest;
+  document.getElementById("selected-match-profile").replaceChildren();
+  setText("selected-match-status", "");
   setText("my-matches-status", "Loading your music matches...");
 
   try {
@@ -328,11 +373,16 @@ async function findMyMatches() {
     const ul = document.createElement("ul");
     ul.className = "item-list";
     for (const match of matches) {
+      if (typeof match.user_id !== "string" || !match.user_id) continue;
       const li = document.createElement("li");
       li.className = "artist-item";
-      const name = match.display_name || match.user_id || "Unknown user";
+      const selectButton = document.createElement("button");
+      selectButton.type = "button";
+      const name = match.display_name || match.user_id;
       const percent = match.match_percent;
-      li.textContent = `${name} — ${percent == null ? "N/A" : `${percent}%`}`;
+      selectButton.textContent = `${name} — ${percent == null ? "N/A" : `${percent}%`}`;
+      selectButton.addEventListener("click", () => selectMusicMatch(match));
+      li.appendChild(selectButton);
       ul.appendChild(li);
     }
     list.appendChild(ul);
